@@ -1,0 +1,71 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+web/build/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# .vscode settings for Visual Studio Code
+.vscode/
+
+# MacOS
+.macos/.build/
+
+# iOS build output
+/ios/.generated/
+/ios/Flutter/.symlinks/
+/ios/Pods/
+
+# Flutter generated plugins and dependencies
+.dart_tool/
+.packages
+
+# Flutter build logs
+**/*.log
+
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# .env file for environment variables
+*.env
+
+# Other temporary files
+*.swp
+*.bak
+*.tmp

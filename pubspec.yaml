@@ -1,0 +1,14 @@
+name: flutter_http_demo
+description: Flutter app with login and document list using http.
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^0.13.5
+
+flutter:
+  uses-material-design: true
