@@ -8,7 +8,7 @@ class Proyecto {
   final int? monedaId;
   final int? tipoProcedimientoId;
   final String? numeroSolcon;
-  final String? codigoProyectoSII;
+  final int? codigoProyectoSiiId;  // Cambiado a ID del código de proyecto
   final double? importeAnticipo;
   final String? adquisicionServicioObra;
   final String? solicitudPAC;
@@ -41,7 +41,7 @@ class Proyecto {
     this.monedaId,
     this.tipoProcedimientoId,
     this.numeroSolcon,
-    this.codigoProyectoSII,
+    this.codigoProyectoSiiId,  // Ahora solo tenemos el ID del código
     this.importeAnticipo,
     this.adquisicionServicioObra,
     this.solicitudPAC,
@@ -76,7 +76,7 @@ class Proyecto {
       monedaId: json['moneda_id'],
       tipoProcedimientoId: json['tipo_procedimiento_id'],
       numeroSolcon: json['numero_solcon'],
-      codigoProyectoSII: json['codigo_proyecto_sii'],
+      codigoProyectoSiiId: json['codigo_proyecto_sii_id'],  // Usamos el ID del código de proyecto
       importeAnticipo: json['importe_anticipo'] != null
           ? double.tryParse(json['importe_anticipo'].toString())
           : null,

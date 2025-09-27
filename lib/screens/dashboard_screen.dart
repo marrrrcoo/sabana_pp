@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'usuarios_screen.dart';
 import 'proyectos_screen.dart';
+import 'codigo_proyecto_screen.dart';  // Importar la nueva pantalla
 import '../widgets/logout_button.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -24,8 +25,11 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
 
+  // Verificar si es administrador en base al departamentoId
+  bool get isAdmin => widget.departamentoId == 8;
+
   List<Widget> _screens() {
-    if (widget.isAdmin) {
+    if (isAdmin) {
       return [
         UsuariosScreen(adminRpe: widget.rpe),
         ProyectosScreen(
@@ -35,6 +39,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           showLogout: false,
           isAdmin: true,
         ),
+        CodigoProyectoScreen(),  // Mostrar la pantalla para gestionar códigos de proyecto solo para admin
       ];
     } else {
       return [
@@ -50,10 +55,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   List<BottomNavigationBarItem> _navItems() {
-    if (widget.isAdmin) {
+    if (isAdmin) {
       return const [
         BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Usuarios'),
         BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'Proyectos'),
+        BottomNavigationBarItem(icon: Icon(Icons.code), label: 'Códigos'), // Opción para los códigos
       ];
     } else {
       return const [
@@ -63,8 +69,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   List<String> _titles() {
-    if (widget.isAdmin) {
-      return ['Usuarios', 'Proyectos'];
+    if (isAdmin) {
+      return ['Usuarios', 'Proyectos', 'Códigos'];  // Título para la nueva página
     } else {
       return ['Proyectos'];
     }

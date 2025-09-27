@@ -155,16 +155,23 @@ class ApiService {
     int monedaId = 1,
     int tipoProcedimientoId = 1,
     required int rpe,
+    required String plazoEntrega,
+    required String fechaEstudioNecesidades,
+    required int codigoProyectoSiiId,  // Campo para el ID del código de proyecto
   }) async {
     final url = Uri.parse('$baseUrl/proyectos');
     final body = {
       'nombre': nombre,
       'departamento_id': departamentoId,
-      'presupuesto': presupuesto,
+      'presupuesto_estimado': presupuesto,
       'moneda_id': monedaId,
       'tipo_procedimiento_id': tipoProcedimientoId,
       'rpe': rpe,
+      'plazo_entrega': plazoEntrega,
+      'fecha_estudio_necesidades': fechaEstudioNecesidades,
+      'codigo_proyecto_sii_id': codigoProyectoSiiId,  // Enviar el ID del código de proyecto
     };
+
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
@@ -175,4 +182,6 @@ class ApiService {
       throw Exception('Error al crear proyecto: ${response.body}');
     }
   }
+
+
 }

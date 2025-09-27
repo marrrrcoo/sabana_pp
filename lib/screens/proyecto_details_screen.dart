@@ -24,7 +24,6 @@ class ProyectoDetailsScreen extends StatelessWidget {
             Text('Tipo de procedimiento: ${proyecto.tipoProcedimientoId}'),
             const SizedBox(height: 12),
             if (proyecto.numeroSolcon != null) Text('Número de SolCon: ${proyecto.numeroSolcon}'),
-            if (proyecto.codigoProyectoSII != null) Text('Código Proyecto SII: ${proyecto.codigoProyectoSII}'),
             if (proyecto.observaciones != null) ...[
               const SizedBox(height: 12),
               Text('Observaciones: ${proyecto.observaciones}'),
