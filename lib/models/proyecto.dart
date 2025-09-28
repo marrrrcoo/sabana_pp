@@ -25,6 +25,8 @@ class Proyecto {
   final double? importeAdjudicado;
   final double? anticipoOtorgado;
   final String? observaciones;
+  final bool entregaSubida; // Agregado al constructor y al fromJson
+
 
   // Nombres desnormalizados del JOIN
   final String? departamento;
@@ -37,6 +39,7 @@ class Proyecto {
     required this.departamentoId,
     required this.estadoId,
     required this.etapaId,
+    required this.entregaSubida,
     this.presupuestoEstimado,
     this.monedaId,
     this.tipoProcedimientoId,
@@ -70,6 +73,7 @@ class Proyecto {
       departamentoId: json['departamento_id'],
       estadoId: json['estado_id'],
       etapaId: json['etapa_id'],
+      entregaSubida: json['entrega_subida'] == 1,
       presupuestoEstimado: json['presupuesto_estimado'] != null
           ? double.tryParse(json['presupuesto_estimado'].toString())
           : null,

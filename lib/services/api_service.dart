@@ -183,5 +183,31 @@ class ApiService {
     }
   }
 
+  Future<void> actualizarEntregaSubida(int proyectoId, bool valor) async {
+    final url = Uri.parse('$baseUrl/proyectos/$proyectoId/entrega_subida');
+    final response = await http.patch(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'entrega_subida': valor}),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Error al actualizar la entrega de especificaciones');
+    }
+  }
+
+  Future<Proyecto> getProyectoById(int id) async {
+    final url = Uri.parse('$baseUrl/proyectos/$id');
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return Proyecto.fromJson(data);
+    } else {
+      throw Exception('Error al cargar el proyecto');
+    }
+  }
+
+
 
 }

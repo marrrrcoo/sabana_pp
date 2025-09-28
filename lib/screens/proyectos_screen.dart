@@ -39,12 +39,22 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
     }
   }
 
+  // Función para recargar los proyectos después de ver o actualizar un proyecto
+  void _recargarProyectos() {
+    setState(() {
+      if (widget.isAdmin) {
+        proyectos = api.getTodosProyectos();
+      } else {
+        proyectos = api.getProyectosPorUsuario(widget.rpe);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Bienvenido, ${widget.nombre}'),
-
       ),
       body: FutureBuilder<List<Proyecto>>(
         future: proyectos,
@@ -72,10 +82,11 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                     MaterialPageRoute(
                       builder: (_) => ProyectoDetailsScreen(proyecto: p),
                     ),
-                  );
+                  ).then((_) {
+                    _recargarProyectos();  // Recargar los proyectos después de regresar
+                  });
                 },
               );
-
             },
           );
         },
