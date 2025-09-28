@@ -209,5 +209,27 @@ class ApiService {
   }
 
 
+  Future<void> editarCodigoProyecto({
+    required int id,
+    required String codigoProyectoSii,
+    required int ano,
+  }) async {
+    final url = Uri.parse('$baseUrl/codigo_proyecto/$id');
+    final body = {
+      'codigo_proyecto_sii': codigoProyectoSii,
+      'ano': ano,
+    };
+
+    final response = await http.put(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Error al actualizar código de proyecto: ${response.body}');
+    }
+  }
+
 
 }

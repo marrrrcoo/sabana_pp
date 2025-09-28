@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../services/api_service.dart';
 
 class CodigoProyectoScreen extends StatefulWidget {
   @override
@@ -11,6 +12,12 @@ class _CodigoProyectoScreenState extends State<CodigoProyectoScreen> {
   final TextEditingController _codigoController = TextEditingController();
   final TextEditingController _anoController = TextEditingController();
   List<dynamic> _codigos = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _obtenerCodigos();
+  }
 
   // Obtener todos los códigos
   Future<void> _obtenerCodigos() async {
@@ -32,14 +39,14 @@ class _CodigoProyectoScreenState extends State<CodigoProyectoScreen> {
       headers: {'Content-Type': 'application/json'},
       body: json.encode({
         'codigo_proyecto_sii': _codigoController.text,
-        'ano': int.parse(_anoController.text),  // Cambié "año" por "ano"
+        'ano': int.parse(_anoController.text),
       }),
     );
 
     if (response.statusCode == 201) {
-      _obtenerCodigos();  // Refrescar la lista de códigos
-      _codigoController.clear();  // Limpiar el campo de texto
-      _anoController.clear();  // Limpiar el campo de año
+      _obtenerCodigos();
+      _codigoController.clear();
+      _anoController.clear();
     } else {
       throw Exception('Error al crear el código');
     }
@@ -52,16 +59,64 @@ class _CodigoProyectoScreenState extends State<CodigoProyectoScreen> {
     );
 
     if (response.statusCode == 200) {
-      _obtenerCodigos();  // Refrescar la lista de códigos
+      _obtenerCodigos();
     } else {
       throw Exception('Error al eliminar el código');
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _obtenerCodigos();
+  // Editar un código
+  void _editarCodigoDialog(Map<String, dynamic> codigo) {
+    final TextEditingController codigoController =
+    TextEditingController(text: codigo['codigo_proyecto_sii']);
+    final TextEditingController anoController =
+    TextEditingController(text: codigo['ano'].toString());
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Editar Código de Proyecto'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: codigoController,
+                decoration: InputDecoration(labelText: 'Código de Proyecto'),
+              ),
+              TextField(
+                controller: anoController,
+                decoration: InputDecoration(labelText: 'Año'),
+                keyboardType: TextInputType.number,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await ApiService().editarCodigoProyecto(
+                    id: codigo['id'],
+                    codigoProyectoSii: codigoController.text,
+                    ano: int.parse(anoController.text),
+                  );
+                  Navigator.pop(context);
+                  _obtenerCodigos();
+                } catch (e) {
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(SnackBar(content: Text('Error: $e')));
+                }
+              },
+              child: Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -93,9 +148,18 @@ class _CodigoProyectoScreenState extends State<CodigoProyectoScreen> {
                   final codigo = _codigos[index];
                   return ListTile(
                     title: Text('${codigo['codigo_proyecto_sii']} - Año: ${codigo['ano']}'),
-                    trailing: IconButton(
-                      icon: Icon(Icons.delete),
-                      onPressed: () => _eliminarCodigo(codigo['id']),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.edit),
+                          onPressed: () => _editarCodigoDialog(codigo),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.delete),
+                          onPressed: () => _eliminarCodigo(codigo['id']),
+                        ),
+                      ],
                     ),
                   );
                 },
