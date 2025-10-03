@@ -7,9 +7,6 @@ import 'package:http/http.dart' as http;
 /// Handler de mensajes en background (requerido por FCM)
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Si necesitas inicializar Firebase aquí, hazlo, pero con firebase_core 4.x
-  // lo normal es que NO sea necesario si solo logueas/manejas data.
-  // await Firebase.initializeApp(); // <-- solo si tu app lo requiere aquí
   debugPrint('BG message: ${message.messageId} data=${message.data}');
 }
 
@@ -21,12 +18,10 @@ class PushNotifications {
   String? _currentToken;
   int? _currentRpe;
 
-  /// Llama esto tras el login (cuando ya tienes el RPE del usuario)
   Future<void> initForUser({required int rpe}) async {
     _currentRpe = rpe;
 
-    // Android 13+ (permiso de notificaciones). En Android no es estrictamente necesario,
-    // pero pedirlo no hace daño y habilita la notificación del sistema si es requerido.
+    // permiso de notificaciones.
     await _fm.requestPermission();
 
     // Manejo background
@@ -48,19 +43,14 @@ class PushNotifications {
     });
 
     // App en foreground: aquí NO se muestra notificación de sistema.
-    // Si algún día quieres banner en foreground, integra flutter_local_notifications
     FirebaseMessaging.onMessage.listen((message) {
       debugPrint('FG message: ${message.notification?.title} - ${message.notification?.body}'
           ' data=${message.data}');
-      // Aquí podrías mostrar un Snackbar/Dialog si quieres feedback visual.
     });
 
     // Usuario toca la notificación y abre la app
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       debugPrint('Notification tap: data=${message.data}');
-      // Ejemplo: si mandas { "proyecto_id": "123" } en data,
-      // aquí podrías navegar a la pantalla de detalles.
-      // Navigator.of(context).push(...); <-- necesitas contexto, haz un callback global si quieres.
     });
   }
 
