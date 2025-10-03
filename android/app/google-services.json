@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "790870113721",
+    "project_id": "sabana-pp",
+    "storage_bucket": "sabana-pp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:790870113721:android:a12fa25a8cb550fc418a68",
+        "android_client_info": {
+          "package_name": "com.example.sabana_pp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDi9__RhktQWFit3mdpkRKfOSwBwU0_1Jk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

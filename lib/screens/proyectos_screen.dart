@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_http_demo/screens/proyecto_details_screen.dart';
 import '../services/api_service.dart';
 import '../models/proyecto.dart';
-import '../widgets/logout_button.dart';
 import 'ProyectoFormScreen.dart';
 
 class ProyectosScreen extends StatefulWidget {

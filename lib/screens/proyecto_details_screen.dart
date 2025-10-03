@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import '../models/proyecto.dart';
 import '../services/api_service.dart';
-import 'package:intl/intl.dart';
 
 class ProyectoDetailsScreen extends StatefulWidget {
   final Proyecto proyecto;
-  final bool isAdmin; // Para mostrar alertas a admins
+  final bool isAdmin; // Se puede mantener para futuras funciones si se desea
 
   const ProyectoDetailsScreen({super.key, required this.proyecto, this.isAdmin = false});
 
@@ -15,56 +14,31 @@ class ProyectoDetailsScreen extends StatefulWidget {
 
 class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
   late bool entregaSubida;
-  late DateTime fechaEntrega;
 
   @override
   void initState() {
     super.initState();
-    entregaSubida = widget.proyecto.entregaSubida;  // Asegúrate de que esto no sea null
-    try {
-      fechaEntrega = DateTime.parse(widget.proyecto.fechaEstudioNecesidades!);  // Convertir la fecha a DateTime
-      print("Fecha de entrega: $fechaEntrega");
-    } catch (e) {
-      print("Error al parsear fecha de entrega: $e");
-    }
+    entregaSubida = widget.proyecto.entregaSubida;  // Inicializa el checkbox con el valor de la base de datos
   }
 
   // Actualizar checkbox en backend
   void _toggleEntrega(bool value) async {
     try {
-      await ApiService().actualizarEntregaSubida(widget.proyecto.id, value); // Llamada para actualizar el checkbox en la base de datos
+      await ApiService().actualizarEntregaSubida(widget.proyecto.id, value);
       setState(() {
-        entregaSubida = value;  // Actualizamos el estado localmente
+        entregaSubida = value;  // Actualiza el estado local
       });
     } catch (e) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error al actualizar: $e')));  // En caso de error al actualizar
+          .showSnackBar(SnackBar(content: Text('Error al actualizar: $e')));
     }
-  }
-
-  // Lógica para notificaciones
-  bool get alertaUsuario {
-    final now = DateTime.now();
-    final diff = fechaEntrega.difference(now).inDays;
-    print("Diferencia de días: $diff");
-    return !entregaSubida && (diff == 2 || diff == 1);  // Alertar al usuario 2-1 día antes de la fecha de entrega
-  }
-
-  bool get alertaAdmin {
-    final now = DateTime.now();
-    print("Fecha actual: $now");
-    print("Fecha de entrega: $fechaEntrega");
-    return !entregaSubida && now.isAfter(fechaEntrega) && widget.isAdmin;  // Alertar al admin si la fecha ya pasó y no está subida
   }
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = alertaAdmin ? Colors.yellow[200] : Colors.white;  // Si es un admin y la fecha pasó, marcar el fondo en amarillo
-
     return Scaffold(
       appBar: AppBar(title: Text('Detalles del Proyecto')),
-      body: Container(
-        color: bgColor,  // Aplicar color de fondo amarillo para los admins con proyectos vencidos
+      body: Padding(
         padding: const EdgeInsets.all(16),
         child: ListView(
           children: [
@@ -88,23 +62,11 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
               children: [
                 const Text('Entrega de Especificaciones y Anexos'),
                 Checkbox(
-                  value: entregaSubida,  // Aquí aseguramos que el valor local se use
-                  onChanged: (value) => _toggleEntrega(value!),  // Aquí actualizamos el estado al cambiar el checkbox
+                  value: entregaSubida,
+                  onChanged: (value) => _toggleEntrega(value!),
                 ),
               ],
             ),
-            if (alertaUsuario)
-              Container(
-                padding: const EdgeInsets.all(8),
-                color: Colors.red[100],
-                child: const Text('¡No ha subido la entrega! Faltan 1-2 días para la fecha límite.'),  // Alerta si faltan 1-2 días
-              ),
-            if (alertaAdmin)
-              Container(
-                padding: const EdgeInsets.all(8),
-                color: Colors.orange[100],
-                child: const Text('¡La entrega de especificaciones no se subió!'),  // Alerta si la fecha ya pasó
-              ),
           ],
         ),
       ),

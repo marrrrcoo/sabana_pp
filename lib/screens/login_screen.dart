@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+
 import 'dashboard_screen.dart';
+// registra el token en tu backend
+import 'package:flutter_http_demo/services/push_notifications.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -30,19 +33,39 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _loading = false);
 
-    final data = jsonDecode(response.body);
-
-    if (data['error'] != null) {
+    // Si el backend devolviera algo que no es JSON válido, evitamos crash
+    Map<String, dynamic> data;
+    try {
+      data = jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(data['error'])),
+        const SnackBar(content: Text('Respuesta inválida del servidor')),
       );
       return;
     }
 
-    final departamentoId = data['departamento_id'];
-    final rpe = data['rpe'];
-    final nombre = data['nombre'];
+    if (data['error'] != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(data['error'].toString())),
+      );
+      return;
+    }
 
+    final int departamentoId = data['departamento_id'] as int;
+    final int rpe = data['rpe'] as int;
+    final String nombre = data['nombre'] as String;
+
+    // inicializa FCM para este usuario y registra el token en tu backend
+    try {
+      await PushNotifications.instance.initForUser(rpe: rpe);
+    } catch (e) {
+      // No bloquees el login si falla el registro del token
+      debugPrint('No se pudo registrar el token FCM: $e');
+    }
+
+    if (!mounted) return;
+
+    // Navegación
     if (departamentoId == 8) {
       // Admin → Dashboard con tabs
       Navigator.pushReplacement(
@@ -52,12 +75,12 @@ class _LoginScreenState extends State<LoginScreen> {
             rpe: rpe,
             nombre: nombre,
             departamentoId: departamentoId,
-            isAdmin: true, // indica que puede ver tab de usuarios
+            isAdmin: true,
           ),
         ),
       );
     } else {
-      // Usuario normal → Dashboard con solo tab Proyectos
+      // Usuario normal - Dashboard con solo tab Proyectos
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -65,7 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
             rpe: rpe,
             nombre: nombre,
             departamentoId: departamentoId,
-            isAdmin: false, // solo tab de proyectos
+            isAdmin: false,
           ),
         ),
       );
