@@ -4,7 +4,10 @@ import '../models/departamento.dart';
 import '../models/puesto.dart';
 import '../services/api_service.dart';
 
-enum RoleFilter { todos, admin, staff, invitado }
+/// Opciones de rol válidas (deben coincidir con backend/DB)
+const kRoles = <String>['admin', 'viewer', 'user'];
+
+enum RoleFilter { todos, admin, viewer, user }
 
 class UsuariosScreen extends StatefulWidget {
   final int adminRpe; // necesario para crear/editar/eliminar
@@ -54,12 +57,13 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
     }
   }
 
-  String _roleOf(Usuario u) {
-    // Ajusta esta lógica a tu gusto
-    if (u.departamentoId == 8) return 'Admin';
-    // ejemplo de “Invitado” si no tiene puesto
-    if (u.puestoId == null) return 'Invitado';
-    return 'Staff';
+  /// Devuelve el rol "normalizado" para mostrar.
+  /// admin -> "Admin", viewer -> "Visualizador", user/null/otro -> "Usuario"
+  String _roleDisplay(Usuario u) {
+    final r = (u.rol ?? '').toLowerCase().trim();
+    if (r == 'admin') return 'Admin';
+    if (r == 'viewer') return 'Visualizador';
+    return 'Usuario';
   }
 
   List<Usuario> get _filtered {
@@ -67,17 +71,26 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
       case RoleFilter.todos:
         return _usuarios;
       case RoleFilter.admin:
-        return _usuarios.where((u) => _roleOf(u) == 'Admin').toList();
-      case RoleFilter.staff:
-        return _usuarios.where((u) => _roleOf(u) == 'Staff').toList();
-      case RoleFilter.invitado:
-        return _usuarios.where((u) => _roleOf(u) == 'Invitado').toList();
+        return _usuarios.where((u) => (u.rol ?? '').toLowerCase() == 'admin').toList();
+      case RoleFilter.viewer:
+        return _usuarios.where((u) => (u.rol ?? '').toLowerCase() == 'viewer').toList();
+      case RoleFilter.user:
+        return _usuarios.where((u) {
+          final r = (u.rol ?? '').toLowerCase();
+          return r.isEmpty || r == 'user';
+        }).toList();
     }
   }
 
-  int get _countAdmin => _usuarios.where((u) => _roleOf(u) == 'Admin').length;
-  int get _countStaff => _usuarios.where((u) => _roleOf(u) == 'Staff').length;
-  int get _countInv => _usuarios.where((u) => _roleOf(u) == 'Invitado').length;
+  int get _countAdmin =>
+      _usuarios.where((u) => (u.rol ?? '').toLowerCase() == 'admin').length;
+  int get _countViewer =>
+      _usuarios.where((u) => (u.rol ?? '').toLowerCase() == 'viewer').length;
+  int get _countUser =>
+      _usuarios.where((u) {
+        final r = (u.rol ?? '').toLowerCase();
+        return r.isEmpty || r == 'user';
+      }).length;
 
   Future<void> _confirmDelete(Usuario u) async {
     final ok = await showDialog<bool>(
@@ -154,8 +167,8 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                 child: _FiltersBar(
                   total: _usuarios.length,
                   admin: _countAdmin,
-                  staff: _countStaff,
-                  invitado: _countInv,
+                  viewer: _countViewer,
+                  userCount: _countUser,
                   selected: _filter,
                   onChanged: (f) => setState(() => _filter = f),
                 ),
@@ -168,8 +181,9 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (ctx, i) {
                   final u = _filtered[i];
-                  final role = _roleOf(u);
-                  return Card(
+                  final roleDisp = _roleDisplay(u);
+                  return Card
+                    (
                     elevation: 0,
                     color: Theme.of(context).colorScheme.surfaceContainerHighest,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -182,7 +196,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                           children: [
                             Expanded(child: Text(u.correo ?? '—')),
                             const SizedBox(width: 12),
-                            _RoleBadge(role: role),
+                            _RoleBadge(role: roleDisp),
                           ],
                         ),
                       ),
@@ -231,11 +245,11 @@ class _RoleBadge extends StatelessWidget {
         bg = cs.primaryContainer;
         fg = cs.onPrimaryContainer;
         break;
-      case 'Staff':
+      case 'Visualizador':
         bg = cs.tertiaryContainer;
         fg = cs.onTertiaryContainer;
         break;
-      default: // Invitado u otros
+      default: // Usuario u otros
         bg = cs.secondaryContainer;
         fg = cs.onSecondaryContainer;
     }
@@ -252,15 +266,15 @@ class _RoleBadge extends StatelessWidget {
 }
 
 class _FiltersBar extends StatelessWidget {
-  final int total, admin, staff, invitado;
+  final int total, admin, viewer, userCount;
   final RoleFilter selected;
   final ValueChanged<RoleFilter> onChanged;
 
   const _FiltersBar({
     required this.total,
     required this.admin,
-    required this.staff,
-    required this.invitado,
+    required this.viewer,
+    required this.userCount,
     required this.selected,
     required this.onChanged,
   });
@@ -308,8 +322,8 @@ class _FiltersBar extends StatelessWidget {
       children: [
         _chip(context, 'Todos', total, RoleFilter.todos),
         _chip(context, 'Admin', admin, RoleFilter.admin),
-        _chip(context, 'Staff', staff, RoleFilter.staff),
-        _chip(context, 'Invitado', invitado, RoleFilter.invitado),
+        _chip(context, 'Visualizador', viewer, RoleFilter.viewer),
+        _chip(context, 'Usuario', userCount, RoleFilter.user),
       ],
     );
   }
@@ -345,6 +359,7 @@ class _UserFormSheetState extends State<_UserFormSheet> {
 
   int? _depId;
   int? _puestoId;
+  String? _rolSel; // dropdown de rol
 
   bool get _isEdit => widget.editing != null;
 
@@ -359,6 +374,10 @@ class _UserFormSheetState extends State<_UserFormSheet> {
 
     _depId = e?.departamentoId;
     _puestoId = e?.puestoId;
+
+    // rol inicial: respeta el existente o default 'user'
+    final rolActual = (e?.rol ?? '').toLowerCase().trim();
+    _rolSel = kRoles.contains(rolActual) ? rolActual : 'user';
   }
 
   @override
@@ -381,6 +400,7 @@ class _UserFormSheetState extends State<_UserFormSheet> {
         puestoId: _puestoId!,
         correo: _correo.text,
         password: _password.text,
+        rol: _rolSel ?? 'user',
       );
 
       if (_isEdit) {
@@ -478,6 +498,28 @@ class _UserFormSheetState extends State<_UserFormSheet> {
                     validator: (v) => v == null ? 'Selecciona' : null,
                   ),
                   const SizedBox(height: 12),
+
+                  // Dropdown de Rol (nuevo)
+                  DropdownButtonFormField<String>(
+                    value: _rolSel,
+                    items: kRoles
+                        .map((r) => DropdownMenuItem<String>(
+                      value: r,
+                      child: Text(
+                        r == 'admin'
+                            ? 'Admin'
+                            : r == 'viewer'
+                            ? 'Visualizador'
+                            : 'Usuario',
+                      ),
+                    ))
+                        .toList(),
+                    onChanged: (v) => setState(() => _rolSel = v),
+                    decoration: const InputDecoration(labelText: 'Rol'),
+                    validator: (v) => v == null || v.isEmpty ? 'Selecciona' : null,
+                  ),
+                  const SizedBox(height: 12),
+
                   TextFormField(
                     controller: _password,
                     decoration: const InputDecoration(labelText: 'Contraseña'),

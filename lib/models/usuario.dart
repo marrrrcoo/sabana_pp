@@ -5,6 +5,7 @@ class Usuario {
   final int puestoId;
   final String correo;
   final String password;
+  final String rol;
 
   Usuario({
     required this.rpe,
@@ -13,6 +14,7 @@ class Usuario {
     required this.puestoId,
     required this.correo,
     required this.password,
+    required this.rol,
   });
 
   factory Usuario.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,7 @@ class Usuario {
       puestoId: json['puesto_id'],
       correo: json['correo'],
       password: json['password'],
+      rol: json['rol'],
     );
   }
 }

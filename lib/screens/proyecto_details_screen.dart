@@ -5,9 +5,13 @@ import '../services/api_service.dart';
 
 class ProyectoDetailsScreen extends StatefulWidget {
   final Proyecto proyecto;
-  final bool isAdmin;
+  final bool canEdit; // <-- nuevo: controla si se muestra el checkbox
 
-  const ProyectoDetailsScreen({super.key, required this.proyecto, this.isAdmin = false});
+  const ProyectoDetailsScreen({
+    super.key,
+    required this.proyecto,
+    this.canEdit = true,
+  });
 
   @override
   State<ProyectoDetailsScreen> createState() => _ProyectoDetailsScreenState();
@@ -38,14 +42,12 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     if (s == null || s.isEmpty) return false;
     final f = DateTime.tryParse(s);
     if (f == null) return false;
-
     final hoy = DateTime.now();
     final fh = DateTime(f.year, f.month, f.day);
     final hh = DateTime(hoy.year, hoy.month, hoy.day);
     return hh.isAfter(fh);
   }
 
-  // helper local
   String _fmtDdMmYy(String? iso) {
     if (iso == null || iso.isEmpty) return '—';
     final dt = DateTime.tryParse(iso);
@@ -61,7 +63,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         padding: const EdgeInsets.all(16),
         child: ListView(
           children: [
-            Text('Nombre: ${widget.proyecto.nombre}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text('Nombre: ${widget.proyecto.nombre}',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             Text('Departamento: ${widget.proyecto.departamento}'),
             Text('Etapa: ${widget.proyecto.etapa}'),
@@ -70,7 +73,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
             Text('Presupuesto: ${widget.proyecto.presupuestoEstimado} ${widget.proyecto.monedaId}'),
             Text('Tipo de procedimiento: ${widget.proyecto.tipoProcedimientoNombre ?? "—"}'),
             const SizedBox(height: 12),
-            if (widget.proyecto.numeroSolcon != null) Text('Número de SolCon: ${widget.proyecto.numeroSolcon}'),
+            if (widget.proyecto.numeroSolcon != null)
+              Text('Número de SolCon: ${widget.proyecto.numeroSolcon}'),
             if (widget.proyecto.observaciones != null) ...[
               const SizedBox(height: 12),
               Text('Observaciones: ${widget.proyecto.observaciones}'),
@@ -78,10 +82,10 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
             const SizedBox(height: 16),
             if (widget.proyecto.fechaEstudioNecesidades != null)
               Text('Entrega de Especificaciones: ${_fmtDdMmYy(widget.proyecto.fechaEstudioNecesidades)}'),
-
             const SizedBox(height: 20),
 
-            if (!_vencio)
+            // Solo si no venció y el rol puede editar
+            if (!_vencio && widget.canEdit)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -92,7 +96,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                   ),
                 ],
               )
-            else
+            else if (_vencio)
               const Text(
                 'La fecha de entrega de especificaciones ya venció.',
                 style: TextStyle(color: Colors.red),

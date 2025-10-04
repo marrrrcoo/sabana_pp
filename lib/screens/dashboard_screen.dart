@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
 import 'usuarios_screen.dart';
 import 'proyectos_screen.dart';
-import 'codigo_proyecto_screen.dart';  // Importar la nueva pantalla
+import 'codigo_proyecto_screen.dart';
 import '../widgets/logout_button.dart';
 
 class DashboardScreen extends StatefulWidget {
   final int rpe;
   final String nombre;
   final int departamentoId;
-  final bool isAdmin;
+  final String rol; // <-- ahora usamos rol
 
   const DashboardScreen({
     super.key,
     required this.rpe,
     required this.nombre,
     required this.departamentoId,
-    required this.isAdmin,
+    required this.rol,
   });
 
   @override
@@ -25,8 +25,8 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
 
-  // Verificar si es administrador en base al departamentoId
-  bool get isAdmin => widget.departamentoId == 8;
+  bool get isAdmin => widget.rol == 'admin';
+  bool get isViewer => widget.rol == 'viewer';
 
   List<Widget> _screens() {
     if (isAdmin) {
@@ -36,19 +36,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
           rpe: widget.rpe,
           nombre: widget.nombre,
           departamentoId: widget.departamentoId,
-          showLogout: false,
-          isAdmin: true,
+          rol: widget.rol,
         ),
-        CodigoProyectoScreen(),  // Mostrar la pantalla para gestionar códigos de proyecto solo para admin
+        CodigoProyectoScreen(),
       ];
-    } else {
+    } else if (isViewer) {
       return [
         ProyectosScreen(
           rpe: widget.rpe,
           nombre: widget.nombre,
           departamentoId: widget.departamentoId,
-          showLogout: true,
-          isAdmin: false,
+          rol: widget.rol,
+        ),
+      ];
+    } else {
+      // user normal
+      return [
+        ProyectosScreen(
+          rpe: widget.rpe,
+          nombre: widget.nombre,
+          departamentoId: widget.departamentoId,
+          rol: widget.rol,
         ),
       ];
     }
@@ -59,7 +67,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return const [
         BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Usuarios'),
         BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'Proyectos'),
-        BottomNavigationBarItem(icon: Icon(Icons.code), label: 'Códigos'), // Opción para los códigos
+        BottomNavigationBarItem(icon: Icon(Icons.code), label: 'Códigos'),
       ];
     } else {
       return const [
@@ -70,7 +78,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   List<String> _titles() {
     if (isAdmin) {
-      return ['Usuarios', 'Proyectos', 'Códigos'];  // Título para la nueva página
+      return ['Usuarios', 'Proyectos', 'Códigos'];
     } else {
       return ['Proyectos'];
     }
@@ -88,15 +96,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         actions: const [LogoutButton()],
       ),
       body: screens[_selectedIndex],
-      bottomNavigationBar: _navItems().length >= 2
+      bottomNavigationBar: navItems.length >= 2
           ? BottomNavigationBar(
         currentIndex: _selectedIndex,
-        items: _navItems(),
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
+        items: navItems,
+        onTap: (index) => setState(() => _selectedIndex = index),
       )
           : null,
     );

@@ -12,16 +12,14 @@ class ProyectosScreen extends StatefulWidget {
   final int rpe;
   final String nombre;
   final int departamentoId;
-  final bool showLogout;
-  final bool isAdmin;
+  final String rol; // <-- nuevo
 
   const ProyectosScreen({
     super.key,
     required this.rpe,
     required this.nombre,
     required this.departamentoId,
-    this.showLogout = true,
-    this.isAdmin = false,
+    required this.rol,
   });
 
   @override
@@ -29,13 +27,18 @@ class ProyectosScreen extends StatefulWidget {
 }
 
 class _ProyectosScreenState extends State<ProyectosScreen> {
-  final api = ApiService();
+  late final ApiService api =
+  ApiService(actorRpe: widget.rpe, actorRol: widget.rol);
 
   ProjFilter _filter = ProjFilter.todos;
   String _query = '';
 
   late Future<List<Proyecto>> _future;
   List<Proyecto> _all = [];
+
+  bool get isAdmin => widget.rol == 'admin';
+  bool get isViewer => widget.rol == 'viewer';
+  bool get canCreate => !isViewer; // viewer NO puede crear
 
   @override
   void initState() {
@@ -44,9 +47,9 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
   }
 
   Future<List<Proyecto>> _load() async {
-    final data = widget.isAdmin
+    final data = isAdmin || isViewer
         ? await api.getTodosProyectos()
-        : await api.getProyectosPorUsuario(widget.rpe);
+        : await api.getProyectosPorDepartamento(widget.departamentoId);
     setState(() => _all = data);
     return data;
   }
@@ -84,7 +87,6 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
   List<Proyecto> get _filtered {
     Iterable<Proyecto> list = _all;
 
-    // buscador
     if (_query.isNotEmpty) {
       final q = _query.toLowerCase();
       list = list.where((p) =>
@@ -93,7 +95,6 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
           (p.tipoProcedimientoNombre ?? '').toLowerCase().contains(q));
     }
 
-    // filtros
     switch (_filter) {
       case ProjFilter.todos:
         break;
@@ -108,7 +109,6 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
         break;
     }
 
-    // orden: vencidos primero, luego por fecha próxima
     final sorted = list.toList()
       ..sort((a, b) {
         final av = _isVencidoSinSubir(a) ? 0 : 1;
@@ -139,7 +139,8 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
       appBar: AppBar(
         title: Text('Proyectos — ${widget.nombre}'),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: canCreate
+          ? FloatingActionButton(
         onPressed: () {
           Navigator.push(
             context,
@@ -148,12 +149,14 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                 rpe: widget.rpe,
                 nombre: widget.nombre,
                 departamentoId: widget.departamentoId,
+                // no pasamos rol aquí; con ocultar FAB basta
               ),
             ),
           ).then(_refreshAfterPop);
         },
         child: const Icon(Icons.add),
-      ),
+      )
+          : null, // viewer no ve FAB
       body: FutureBuilder<List<Proyecto>>(
         future: _future,
         builder: (context, snap) {
@@ -173,7 +176,6 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
             onRefresh: _load,
             child: CustomScrollView(
               slivers: [
-                // buscador
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -189,8 +191,6 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                     ),
                   ),
                 ),
-
-                // filtros chips
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -207,8 +207,6 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                     ),
                   ),
                 ),
-
-                // lista
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   sliver: SliverList.separated(
@@ -239,7 +237,10 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => ProyectoDetailsScreen(proyecto: p),
+                                builder: (_) => ProyectoDetailsScreen(
+                                  proyecto: p,
+                                  canEdit: !isViewer, // viewer no puede editar
+                                ),
                               ),
                             ).then(_refreshAfterPop);
                           },
@@ -248,7 +249,6 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // título + estado/etapa
                                 Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -274,22 +274,18 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 12),
-
-                                // badges fila
                                 Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
                                   children: [
                                     _pill(
                                       icon: Icons.work_outline_rounded,
-                                      label:
-                                      p.tipoProcedimientoNombre ?? '—',
+                                      label: p.tipoProcedimientoNombre ?? '—',
                                       context: context,
                                     ),
                                     _pill(
                                       icon: Icons.event_rounded,
-                                      label:
-                                      'Entrega: ${_fmtDate(p.fechaEstudioNecesidades)}',
+                                      label: 'Entrega: ${_fmtDate(p.fechaEstudioNecesidades)}',
                                       context: context,
                                     ),
                                     _pill(

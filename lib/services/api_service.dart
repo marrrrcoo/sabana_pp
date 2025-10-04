@@ -8,6 +8,24 @@ import '../models/puesto.dart';
 class ApiService {
   final String baseUrl = 'http://10.0.2.2:3000';
 
+  /// Contexto del actor autenticado. Úsalo tras login.
+  /// Ej.: ApiService(actorRpe: user.rpe, actorRol: user.rol)
+  final int? actorRpe;
+  final String? actorRol;
+
+  ApiService({this.actorRpe, this.actorRol});
+
+  Map<String, String> get _jsonHeaders => {
+    'Content-Type': 'application/json',
+  };
+
+  /// Headers con contexto del actor para endpoints que cambian datos.
+  Map<String, String> get _authJsonHeaders => {
+    'Content-Type': 'application/json',
+    if (actorRol != null) 'x-rol': actorRol!,
+    if (actorRpe != null) 'x-rpe': actorRpe!.toString(),
+  };
+
   // ==============================
   // Login
   // ==============================
@@ -15,13 +33,13 @@ class ApiService {
     final url = Uri.parse('$baseUrl/login');
     final response = await http.post(
       url,
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders,
       body: jsonEncode({'correo': correo, 'password': password}),
     );
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      if (data['error'] != null) return null;
+      if (data is Map && data['error'] != null) return null;
       return Usuario.fromJson(data);
     } else {
       throw Exception('Error en login');
@@ -52,12 +70,13 @@ class ApiService {
       'puesto_id': u.puestoId,
       'correo': u.correo,
       'password': u.password,
+      'rol': u.rol, // nuevo
       'admin_rpe': adminRpe,
     };
 
     final response = await http.post(
       url,
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders,
       body: jsonEncode(body),
     );
 
@@ -74,12 +93,13 @@ class ApiService {
       'puesto_id': u.puestoId,
       'correo': u.correo,
       'password': u.password,
+      'rol': u.rol, // nuevo
       'admin_rpe': adminRpe,
     };
 
     final response = await http.put(
       url,
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders,
       body: jsonEncode(body),
     );
 
@@ -90,7 +110,8 @@ class ApiService {
 
   Future<void> eliminarUsuario(int rpeUsuario, int adminRpe) async {
     final url = Uri.parse('$baseUrl/usuarios/$rpeUsuario?admin_rpe=$adminRpe');
-    final response = await http.delete(url, headers: {'Content-Type': 'application/json'});
+    final response =
+    await http.delete(url, headers: _jsonHeaders);
 
     if (response.statusCode != 200) {
       throw Exception('Error al eliminar usuario: ${response.body}');
@@ -148,33 +169,47 @@ class ApiService {
     }
   }
 
+  Future<List<Proyecto>> getProyectosPorDepartamento(int deptoId) async {
+    final url = Uri.parse('$baseUrl/proyectos/departamento/$deptoId');
+    final response = await http.get(url, headers: _jsonHeaders);
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((j) => Proyecto.fromJson(j)).toList();
+    } else {
+      throw Exception('Error al cargar proyectos por departamento');
+    }
+  }
+
+
   Future<void> crearProyecto({
     required String nombre,
     required int departamentoId,
     required double presupuesto,
     int monedaId = 1,
     int tipoProcedimientoId = 1,
-    required int rpe,
     required String plazoEntrega,
     required String fechaEstudioNecesidades,
-    required int codigoProyectoSiiId,  // Campo para el ID del código de proyecto
+    required int codigoProyectoSiiId,
   }) async {
     final url = Uri.parse('$baseUrl/proyectos');
+
     final body = {
       'nombre': nombre,
       'departamento_id': departamentoId,
       'presupuesto_estimado': presupuesto,
       'moneda_id': monedaId,
       'tipo_procedimiento_id': tipoProcedimientoId,
-      'rpe': rpe,
       'plazo_entrega': plazoEntrega,
       'fecha_estudio_necesidades': fechaEstudioNecesidades,
-      'codigo_proyecto_sii_id': codigoProyectoSiiId,  // Enviar el ID del código de proyecto
+      'codigo_proyecto_sii_id': codigoProyectoSiiId,
+      // redundante por compatibilidad/depuración:
+      if (actorRpe != null) 'actor_rpe': actorRpe,
+      if (actorRol != null) 'actor_rol': actorRol,
     };
 
     final response = await http.post(
       url,
-      headers: {'Content-Type': 'application/json'},
+      headers: _authJsonHeaders,
       body: jsonEncode(body),
     );
 
@@ -187,8 +222,11 @@ class ApiService {
     final url = Uri.parse('$baseUrl/proyectos/$proyectoId/entrega_subida');
     final response = await http.patch(
       url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'entrega_subida': valor}),
+      headers: _authJsonHeaders,
+      body: jsonEncode({
+        'entrega_subida': valor,
+        if (actorRol != null) 'actor_rol': actorRol,
+      }),
     );
 
     if (response.statusCode != 200) {
@@ -208,7 +246,6 @@ class ApiService {
     }
   }
 
-
   Future<void> editarCodigoProyecto({
     required int id,
     required String codigoProyectoSii,
@@ -222,7 +259,8 @@ class ApiService {
 
     final response = await http.put(
       url,
-      headers: {'Content-Type': 'application/json'},
+      // si quieres que el backend restrinja por rol, puedes usar _authJsonHeaders
+      headers: _authJsonHeaders,
       body: jsonEncode(body),
     );
 
@@ -230,6 +268,4 @@ class ApiService {
       throw Exception('Error al actualizar código de proyecto: ${response.body}');
     }
   }
-
-
 }
