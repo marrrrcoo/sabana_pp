@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'usuarios_screen.dart';
 import 'proyectos_screen.dart';
-import 'codigo_proyecto_screen.dart';
+import 'catalogos_screen.dart';
 import '../widgets/logout_button.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -38,7 +38,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           departamentoId: widget.departamentoId,
           rol: widget.rol,
         ),
-        CodigoProyectoScreen(),
+        CatalogosScreen(adminRpe: widget.rpe),
       ];
     } else if (isViewer) {
       return [
@@ -67,7 +67,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return const [
         BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Usuarios'),
         BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'Proyectos'),
-        BottomNavigationBarItem(icon: Icon(Icons.code), label: 'Códigos'),
+        BottomNavigationBarItem(icon: Icon(Icons.library_books_outlined), label: 'Catálogos'),
+
       ];
     } else {
       return const [
@@ -78,7 +79,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   List<String> _titles() {
     if (isAdmin) {
-      return ['Usuarios', 'Proyectos', 'Códigos'];
+      return ['Usuarios', 'Proyectos', 'Catálogos'];
     } else {
       return ['Proyectos'];
     }

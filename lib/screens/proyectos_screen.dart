@@ -148,6 +148,7 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
               builder: (_) => ProyectoFormScreen(
                 rpe: widget.rpe,
                 nombre: widget.nombre,
+                rol: widget.rol,
                 departamentoId: widget.departamentoId,
                 // no pasamos rol aquí; con ocultar FAB basta
               ),
@@ -239,11 +240,16 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                               MaterialPageRoute(
                                 builder: (_) => ProyectoDetailsScreen(
                                   proyecto: p,
-                                  canEdit: !isViewer, // viewer no puede editar
+                                  // el viewer no puede editar; admin/user según backend (admin o creador)
+                                  canEdit: widget.rol != 'viewer',
+                                  // pasa el actor para que se envíen x-rol / x-rpe
+                                  actorRpe: widget.rpe,
+                                  actorRol: widget.rol, // 'admin' | 'user' | 'viewer'
                                 ),
                               ),
                             ).then(_refreshAfterPop);
                           },
+
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                             child: Column(

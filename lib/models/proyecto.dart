@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 class Proyecto {
   final int id;
   final String nombre;
+  final String? tipoContratacion; // 'AD' | 'SE' | 'OP'
 
   // Claves foráneas / ids crudos
   final int departamentoId;
@@ -77,6 +78,7 @@ class Proyecto {
     this.etapa,
     this.tipoProcedimientoNombre,
     this.creadorRpe,
+    this.tipoContratacion,
   });
 
   /// Indica si la fecha_estudio_necesidades ya venció.
@@ -173,6 +175,7 @@ class Proyecto {
 
       tipoProcedimientoNombre: json['tipo_procedimiento']?.toString(),
       creadorRpe: _asIntOrNull(json['creador_rpe']),
+      tipoContratacion: json['tipo_contratacion']?.toString(),
     );
   }
 }

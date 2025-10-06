@@ -110,8 +110,7 @@ class ApiService {
 
   Future<void> eliminarUsuario(int rpeUsuario, int adminRpe) async {
     final url = Uri.parse('$baseUrl/usuarios/$rpeUsuario?admin_rpe=$adminRpe');
-    final response =
-    await http.delete(url, headers: _jsonHeaders);
+    final response = await http.delete(url, headers: _jsonHeaders);
 
     if (response.statusCode != 200) {
       throw Exception('Error al eliminar usuario: ${response.body}');
@@ -180,7 +179,6 @@ class ApiService {
     }
   }
 
-
   Future<void> crearProyecto({
     required String nombre,
     required int departamentoId,
@@ -190,6 +188,8 @@ class ApiService {
     required String plazoEntrega,
     required String fechaEstudioNecesidades,
     required int codigoProyectoSiiId,
+    String? tipoContratacion, // 'AD' | 'SE' | 'OP'
+    String? observaciones,
   }) async {
     final url = Uri.parse('$baseUrl/proyectos');
 
@@ -202,7 +202,8 @@ class ApiService {
       'plazo_entrega': plazoEntrega,
       'fecha_estudio_necesidades': fechaEstudioNecesidades,
       'codigo_proyecto_sii_id': codigoProyectoSiiId,
-      // redundante por compatibilidad/depuración:
+      if (tipoContratacion != null) 'tipo_contratacion': tipoContratacion,
+      if (observaciones != null) 'observaciones': observaciones,
       if (actorRpe != null) 'actor_rpe': actorRpe,
       if (actorRol != null) 'actor_rol': actorRol,
     };
@@ -234,6 +235,38 @@ class ApiService {
     }
   }
 
+  // actualizar observaciones con historial
+  Future<void> actualizarObservaciones({
+    required int proyectoId,
+    required String observaciones,
+  }) async {
+    final url = Uri.parse('$baseUrl/proyectos/$proyectoId/observaciones');
+    final res = await http.put(
+      url,
+      headers: _authJsonHeaders,
+      body: jsonEncode({
+        'observaciones': observaciones,
+        if (actorRpe != null) 'actor_rpe': actorRpe,
+        if (actorRol != null) 'actor_rol': actorRol,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Error al actualizar observaciones: ${res.body}');
+    }
+  }
+
+// obtener historial de observaciones
+  Future<List<Map<String, dynamic>>> getHistorialObservaciones(int proyectoId) async {
+    final url = Uri.parse('$baseUrl/proyectos/$proyectoId/observaciones/historial');
+    final res = await http.get(url, headers: _jsonHeaders);
+    if (res.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(res.body);
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception('Error al cargar historial de observaciones');
+    }
+  }
+
   Future<Proyecto> getProyectoById(int id) async {
     final url = Uri.parse('$baseUrl/proyectos/$id');
     final response = await http.get(url);
@@ -243,6 +276,35 @@ class ApiService {
       return Proyecto.fromJson(data);
     } else {
       throw Exception('Error al cargar el proyecto');
+    }
+  }
+
+  // ==============================
+  // Códigos de proyecto (codigo_proyecto)
+  // ==============================
+  Future<List<dynamic>> getCodigosProyecto() async {
+    final url = Uri.parse('$baseUrl/codigo_proyecto');
+    final res = await http.get(url);
+    if (res.statusCode != 200) {
+      throw Exception('Error al cargar códigos: ${res.body}');
+    }
+    return jsonDecode(res.body);
+  }
+
+  Future<void> crearCodigoProyecto({
+    required String codigoProyectoSii,
+    required int ano,
+    int? adminRpe, // por si luego decides restringir por rol
+  }) async {
+    final url = Uri.parse('$baseUrl/codigo_proyecto');
+    final body = {
+      'codigo_proyecto_sii': codigoProyectoSii,
+      'ano': ano,
+      if (adminRpe != null) 'admin_rpe': adminRpe,
+    };
+    final res = await http.post(url, headers: _jsonHeaders, body: jsonEncode(body));
+    if (res.statusCode != 201) {
+      throw Exception('Error al crear código: ${res.body}');
     }
   }
 
@@ -259,7 +321,6 @@ class ApiService {
 
     final response = await http.put(
       url,
-      // si quieres que el backend restrinja por rol, puedes usar _authJsonHeaders
       headers: _authJsonHeaders,
       body: jsonEncode(body),
     );
@@ -267,5 +328,116 @@ class ApiService {
     if (response.statusCode != 200) {
       throw Exception('Error al actualizar código de proyecto: ${response.body}');
     }
+  }
+
+  Future<void> eliminarCodigoProyecto(int id, {int? adminRpe}) async {
+    final url = Uri.parse(
+      adminRpe == null
+          ? '$baseUrl/codigo_proyecto/$id'
+          : '$baseUrl/codigo_proyecto/$id?admin_rpe=$adminRpe',
+    );
+    final res = await http.delete(url);
+    if (res.statusCode != 200) {
+      throw Exception('Error al eliminar código: ${res.body}');
+    }
+  }
+
+  // ==============================
+  // Catálogos (CRUD solo Admin): Puestos / Estados / Tipos
+  // ==============================
+  // ---- Puestos ----
+  Future<List<dynamic>> catGetPuestos() async {
+    final res = await http.get(Uri.parse('$baseUrl/catalogos/puestos'));
+    if (res.statusCode != 200) throw Exception(res.body);
+    return jsonDecode(res.body);
+  }
+
+  Future<void> catCrearPuesto(String nombre, int adminRpe) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/catalogos/puestos'),
+      headers: _jsonHeaders,
+      body: jsonEncode({'nombre': nombre, 'admin_rpe': adminRpe}),
+    );
+    if (res.statusCode != 201) throw Exception(res.body);
+  }
+
+  Future<void> catEditarPuesto(int id, String nombre, int adminRpe) async {
+    final res = await http.put(
+      Uri.parse('$baseUrl/catalogos/puestos/$id'),
+      headers: _jsonHeaders,
+      body: jsonEncode({'nombre': nombre, 'admin_rpe': adminRpe}),
+    );
+    if (res.statusCode != 200) throw Exception(res.body);
+  }
+
+  Future<void> catEliminarPuesto(int id, int adminRpe) async {
+    final res = await http.delete(
+      Uri.parse('$baseUrl/catalogos/puestos/$id?admin_rpe=$adminRpe'),
+    );
+    if (res.statusCode != 200) throw Exception(res.body);
+  }
+
+  // ---- Estados de proyecto ----
+  Future<List<dynamic>> catGetEstados() async {
+    final res = await http.get(Uri.parse('$baseUrl/catalogos/estados'));
+    if (res.statusCode != 200) throw Exception(res.body);
+    return jsonDecode(res.body);
+  }
+
+  Future<void> catCrearEstado(String nombre, int adminRpe) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/catalogos/estados'),
+      headers: _jsonHeaders,
+      body: jsonEncode({'nombre': nombre, 'admin_rpe': adminRpe}),
+    );
+    if (res.statusCode != 201) throw Exception(res.body);
+  }
+
+  Future<void> catEditarEstado(int id, String nombre, int adminRpe) async {
+    final res = await http.put(
+      Uri.parse('$baseUrl/catalogos/estados/$id'),
+      headers: _jsonHeaders,
+      body: jsonEncode({'nombre': nombre, 'admin_rpe': adminRpe}),
+    );
+    if (res.statusCode != 200) throw Exception(res.body);
+  }
+
+  Future<void> catEliminarEstado(int id, int adminRpe) async {
+    final res = await http.delete(
+      Uri.parse('$baseUrl/catalogos/estados/$id?admin_rpe=$adminRpe'),
+    );
+    if (res.statusCode != 200) throw Exception(res.body);
+  }
+
+  // ---- Tipos de contratación (tipos_procedimiento) ----
+  Future<List<dynamic>> catGetTipos() async {
+    final res = await http.get(Uri.parse('$baseUrl/catalogos/tipos'));
+    if (res.statusCode != 200) throw Exception(res.body);
+    return jsonDecode(res.body);
+  }
+
+  Future<void> catCrearTipo(String nombre, int adminRpe) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/catalogos/tipos'),
+      headers: _jsonHeaders,
+      body: jsonEncode({'nombre': nombre, 'admin_rpe': adminRpe}),
+    );
+    if (res.statusCode != 201) throw Exception(res.body);
+  }
+
+  Future<void> catEditarTipo(int id, String nombre, int adminRpe) async {
+    final res = await http.put(
+      Uri.parse('$baseUrl/catalogos/tipos/$id'),
+      headers: _jsonHeaders,
+      body: jsonEncode({'nombre': nombre, 'admin_rpe': adminRpe}),
+    );
+    if (res.statusCode != 200) throw Exception(res.body);
+  }
+
+  Future<void> catEliminarTipo(int id, int adminRpe) async {
+    final res = await http.delete(
+      Uri.parse('$baseUrl/catalogos/tipos/$id?admin_rpe=$adminRpe'),
+    );
+    if (res.statusCode != 200) throw Exception(res.body);
   }
 }
