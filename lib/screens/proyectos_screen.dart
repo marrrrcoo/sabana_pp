@@ -8,11 +8,14 @@ import 'proyecto_details_screen.dart';
 
 enum ProjFilter { todos, pendientes, vencidos, completados }
 
+// AJUSTA este ID al de "Abastecimientos" en tu tabla `departamentos`
+const int ABASTECIMIENTOS_ID = 10;
+
 class ProyectosScreen extends StatefulWidget {
   final int rpe;
   final String nombre;
   final int departamentoId;
-  final String rol; // <-- nuevo
+  final String rol; // 'admin' | 'user' | 'viewer'
 
   const ProyectosScreen({
     super.key,
@@ -39,6 +42,8 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
   bool get isAdmin => widget.rol == 'admin';
   bool get isViewer => widget.rol == 'viewer';
   bool get canCreate => !isViewer; // viewer NO puede crear
+  bool get canEditTipoProcedimiento =>
+      isAdmin || widget.departamentoId == ABASTECIMIENTOS_ID;
 
   @override
   void initState() {
@@ -127,7 +132,8 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
     return sorted;
   }
 
-  int get _countPend => _all.where((p) => !p.entregaSubida && !_isVencido(p)).length;
+  int get _countPend =>
+      _all.where((p) => !p.entregaSubida && !_isVencido(p)).length;
   int get _countVenc => _all.where(_isVencidoSinSubir).length;
   int get _countComp => _all.where((p) => p.entregaSubida).length;
 
@@ -150,7 +156,6 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                 nombre: widget.nombre,
                 rol: widget.rol,
                 departamentoId: widget.departamentoId,
-                // no pasamos rol aquí; con ocultar FAB basta
               ),
             ),
           ).then(_refreshAfterPop);
@@ -182,7 +187,8 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                     child: TextField(
                       decoration: InputDecoration(
-                        hintText: 'Buscar por nombre, depto o procedimiento…',
+                        hintText:
+                        'Buscar por nombre, depto o procedimiento…',
                         prefixIcon: const Icon(Icons.search),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
@@ -202,14 +208,17 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                         _chip('Todos', _all.length, ProjFilter.todos),
                         _chip('Pendientes', _countPend, ProjFilter.pendientes),
                         _chip('Vencidos', _countVenc, ProjFilter.vencidos,
-                            highlight: cs.errorContainer, onHighlight: cs.onErrorContainer),
-                        _chip('Completados', _countComp, ProjFilter.completados),
+                            highlight: cs.errorContainer,
+                            onHighlight: cs.onErrorContainer),
+                        _chip('Completados', _countComp,
+                            ProjFilter.completados),
                       ],
                     ),
                   ),
                 ),
                 SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   sliver: SliverList.separated(
                     itemCount: data.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
@@ -219,8 +228,13 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
 
                       final cardColor = vencidoSinSubir
                           ? Colors.yellow.shade100.withOpacity(
-                          Theme.of(context).brightness == Brightness.dark ? 0.2 : 1.0)
-                          : Theme.of(context).colorScheme.surfaceContainerHighest;
+                          Theme.of(context).brightness ==
+                              Brightness.dark
+                              ? 0.2
+                              : 1.0)
+                          : Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest;
 
                       return Card(
                         elevation: 0,
@@ -228,7 +242,9 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                           side: BorderSide(
-                            color: vencidoSinSubir ? Colors.amber.shade700 : Colors.transparent,
+                            color: vencidoSinSubir
+                                ? Colors.amber.shade700
+                                : Colors.transparent,
                             width: vencidoSinSubir ? 1.2 : 0.0,
                           ),
                         ),
@@ -240,23 +256,26 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                               MaterialPageRoute(
                                 builder: (_) => ProyectoDetailsScreen(
                                   proyecto: p,
-                                  // el viewer no puede editar; admin/user según backend (admin o creador)
+                                  // viewer no puede editar observaciones/entrega; admin/user sí (según backend)
                                   canEdit: widget.rol != 'viewer',
-                                  // pasa el actor para que se envíen x-rol / x-rpe
+                                  // headers para autorización backend
                                   actorRpe: widget.rpe,
-                                  actorRol: widget.rol, // 'admin' | 'user' | 'viewer'
+                                  actorRol: widget.rol,
+                                  // permitir botón "editar tipo de procedimiento" solo a Abastecimientos (o admin)
+                                  canEditTipoProcedimiento:
+                                  canEditTipoProcedimiento,
                                 ),
                               ),
                             ).then(_refreshAfterPop);
                           },
-
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  crossAxisAlignment:
+                                  CrossAxisAlignment.start,
                                   children: [
                                     Expanded(
                                       child: Text(
@@ -276,7 +295,9 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                                 Text(
                                   '${p.etapa ?? "—"}  ·  ${p.estado ?? "—"}',
                                   style: TextStyle(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
                                   ),
                                 ),
                                 const SizedBox(height: 12),
@@ -286,22 +307,26 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                                   children: [
                                     _pill(
                                       icon: Icons.work_outline_rounded,
-                                      label: p.tipoProcedimientoNombre ?? '—',
+                                      label:
+                                      p.tipoProcedimientoNombre ?? '—',
                                       context: context,
                                     ),
                                     _pill(
                                       icon: Icons.event_rounded,
-                                      label: 'Entrega: ${_fmtDate(p.fechaEstudioNecesidades)}',
+                                      label:
+                                      'Entrega: ${_fmtDate(p.fechaEstudioNecesidades)}',
                                       context: context,
                                     ),
                                     _pill(
                                       icon: Icons.payments_outlined,
-                                      label: _fmtMoney(p.presupuestoEstimado),
+                                      label: _fmtMoney(
+                                          p.presupuestoEstimado),
                                       context: context,
                                     ),
                                     if (p.departamento?.isNotEmpty == true)
                                       _pill(
-                                        icon: Icons.apartment_outlined,
+                                        icon:
+                                        Icons.apartment_outlined,
                                         label: p.departamento!,
                                         context: context,
                                       ),
@@ -331,7 +356,8 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
   }) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding:
+      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: cs.secondaryContainer,
         borderRadius: BorderRadius.circular(999),
@@ -367,7 +393,8 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
         Text(text),
         const SizedBox(width: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          padding: const EdgeInsets.symmetric(
+              horizontal: 8, vertical: 2),
           decoration: BoxDecoration(
             color: sel ? selFg : cs.surfaceVariant,
             borderRadius: BorderRadius.circular(999),
@@ -386,7 +413,8 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
       onSelected: (_) => setState(() => _filter = me),
       selectedColor: selBg,
       labelStyle: TextStyle(color: sel ? selFg : null),
-      shape: StadiumBorder(side: BorderSide(color: cs.outlineVariant)),
+      shape: StadiumBorder(
+          side: BorderSide(color: cs.outlineVariant)),
     );
   }
 }

@@ -19,8 +19,8 @@ class Proyecto {
   final double? importeAnticipo;
   final String? adquisicionServicioObra;
   final String? solicitudPAC;
-  final String? plazoEntrega;
-  final String? fechaEstudioNecesidades;     // Deadline para notificaciones
+  final int? plazoEntregaDias;                 // <-- INT (número de días)
+  final String? fechaEstudioNecesidades;       // deadline notificaciones
   final String? fechaConclusionEstudio;
   final String? fechaSolicitudICM;
   final String? fechaAperturaTecnica;
@@ -42,7 +42,12 @@ class Proyecto {
   // Nombre legible del tipo de procedimiento (JOIN a tipos_procedimiento)
   final String? tipoProcedimientoNombre;
 
-  // Dueño del proyecto (quien lo creó) para lógicas de notificaciones
+  // Código SII y Centro (JOIN a codigo_proyectos_sii -> centros)
+  final String? codigoProyectoSii;             // p.ej. MG-E2-24-GT19-92
+  final int? centroId;                         // id en tabla centros
+  final String? centroClave;                   // p.ej. GT19
+
+  // Dueño del proyecto (quien lo creó)
   final int? creadorRpe;
 
   Proyecto({
@@ -60,7 +65,7 @@ class Proyecto {
     this.importeAnticipo,
     this.adquisicionServicioObra,
     this.solicitudPAC,
-    this.plazoEntrega,
+    this.plazoEntregaDias,
     this.fechaEstudioNecesidades,
     this.fechaConclusionEstudio,
     this.fechaSolicitudICM,
@@ -77,6 +82,9 @@ class Proyecto {
     this.estado,
     this.etapa,
     this.tipoProcedimientoNombre,
+    this.codigoProyectoSii,
+    this.centroId,
+    this.centroClave,
     this.creadorRpe,
     this.tipoContratacion,
   });
@@ -155,7 +163,7 @@ class Proyecto {
       importeAnticipo: _asDoubleOrNull(json['importe_anticipo']),
       adquisicionServicioObra: json['adquisicion_servicio_obra']?.toString(),
       solicitudPAC: json['solicitud_pac']?.toString(),
-      plazoEntrega: json['plazo_entrega']?.toString(),
+      plazoEntregaDias: _asIntOrNull(json['plazo_entrega_dias']),
       fechaEstudioNecesidades: json['fecha_estudio_necesidades']?.toString(),
       fechaConclusionEstudio: json['fecha_conclusion_estudio']?.toString(),
       fechaSolicitudICM: json['fecha_solicitud_icm']?.toString(),
@@ -173,7 +181,13 @@ class Proyecto {
       estado: json['estado']?.toString(),
       etapa: json['etapa']?.toString(),
 
-      tipoProcedimientoNombre: json['tipo_procedimiento']?.toString(),
+      tipoProcedimientoNombre: json['tipo_procedimiento_nombre']?.toString(),
+
+      // Nuevos campos traídos del JOIN
+      codigoProyectoSii: json['codigo_proyecto_sii']?.toString(),
+      centroId: _asIntOrNull(json['centro_id']),
+      centroClave: json['centro_clave']?.toString(),
+
       creadorRpe: _asIntOrNull(json['creador_rpe']),
       tipoContratacion: json['tipo_contratacion']?.toString(),
     );

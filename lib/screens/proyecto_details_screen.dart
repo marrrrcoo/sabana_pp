@@ -7,9 +7,12 @@ class ProyectoDetailsScreen extends StatefulWidget {
   final Proyecto proyecto;
   final bool canEdit;
 
-  // Opcional: pasa el contexto del actor para que el backend autorice
+  // contexto del actor (para headers x-rol/x-rpe)
   final int? actorRpe;
   final String? actorRol;
+
+  // Si el usuario pertenece a Abastecimientos (controla edición del “tipo de procedimiento”)
+  final bool canEditTipoProcedimiento;
 
   const ProyectoDetailsScreen({
     super.key,
@@ -17,6 +20,7 @@ class ProyectoDetailsScreen extends StatefulWidget {
     this.canEdit = true,
     this.actorRpe,
     this.actorRol,
+    this.canEditTipoProcedimiento = false,
   });
 
   @override
@@ -25,7 +29,11 @@ class ProyectoDetailsScreen extends StatefulWidget {
 
 class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
   late bool entregaSubida;
-  late String? _observaciones; // editable en UI
+  late String? _observaciones;
+
+  // cache local del tipo de procedimiento (para actualizar UI después de editar)
+  int? _tipoProcId;
+  String? _tipoProcNombre;
 
   late final ApiService _api;
 
@@ -34,6 +42,9 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     super.initState();
     entregaSubida = widget.proyecto.entregaSubida;
     _observaciones = widget.proyecto.observaciones;
+    _tipoProcId = widget.proyecto.tipoProcedimientoId;
+    _tipoProcNombre = widget.proyecto.tipoProcedimientoNombre;
+
     _api = ApiService(actorRpe: widget.actorRpe, actorRol: widget.actorRol);
   }
 
@@ -152,7 +163,6 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
 
     if (ok != true) return;
 
-    // Guardar en backend + historial
     try {
       final nuevo = ctrl.text.trim();
       await _api.actualizarObservaciones(
@@ -187,6 +197,97 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     );
   }
 
+  Future<void> _editarTipoProcedimiento() async {
+    // Cargar catálogo
+    List<dynamic> tipos = [];
+    try {
+      tipos = await _api.catGetTipos(); // [{id,nombre},...]
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error cargando tipos: $e')));
+      return;
+    }
+
+    int? selId = _tipoProcId;
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  IconButton(onPressed: () => Navigator.pop(ctx, false), icon: const Icon(Icons.close)),
+                  const SizedBox(width: 4),
+                  Text('Cambiar tipo de procedimiento',
+                      style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<int>(
+                value: selId,
+                items: tipos
+                    .map<DropdownMenuItem<int>>(
+                      (t) => DropdownMenuItem<int>(value: t['id'] as int, child: Text(t['nombre'].toString())),
+                )
+                    .toList(),
+                onChanged: (v) => selId = v,
+                decoration: const InputDecoration(labelText: 'Tipo de procedimiento'),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('CANCELAR'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('GUARDAR'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (ok != true || selId == null || selId == _tipoProcId) return;
+
+    final confirmedId = selId!;
+
+    try {
+      final resultName = await _api.actualizarTipoProcedimiento(
+        proyectoId: widget.proyecto.id,
+        tipoProcedimientoId: confirmedId,
+      );
+      setState(() {
+        _tipoProcId = confirmedId;
+        _tipoProcNombre = resultName ?? _tipoProcNombre;
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tipo de procedimiento actualizado')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -198,6 +299,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         padding: const EdgeInsets.all(12),
         child: ListView(
           children: [
+            // Header
             Card(
               elevation: 0,
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -207,56 +309,37 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Título + alerta
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: Text(
-                            p.nombre,
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-                          ),
+                          child: Text(p.nombre, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
                         ),
                         if (_vencio && !entregaSubida)
                           Icon(Icons.warning_amber_rounded, color: Colors.amber.shade800),
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      '${p.etapa ?? "—"}  ·  ${p.estado ?? "—"}',
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    ),
+                    Text('${p.etapa ?? "—"}  ·  ${p.estado ?? "—"}',
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        _pill(
-                          context: context,
-                          icon: Icons.work_outline_rounded,
-                          label: p.tipoProcedimientoNombre ?? '—',
-                        ),
-                        _pill(
-                          context: context,
-                          icon: Icons.category_outlined,
-                          label: _labelTipoContratacion(p.tipoContratacion),
-                        ),
-                        _pill(
-                          context: context,
-                          icon: Icons.event_rounded,
-                          label: 'Entrega: ${_fmtDdMmYy(p.fechaEstudioNecesidades)}',
-                        ),
-                        _pill(
-                          context: context,
-                          icon: Icons.payments_outlined,
-                          label: _fmtMoney(p.presupuestoEstimado),
-                        ),
+                        _pill(context: context, icon: Icons.work_outline_rounded, label: _tipoProcNombre ?? '—'),
+                        _pill(context: context, icon: Icons.category_outlined, label: _labelTipoContratacion(p.tipoContratacion)),
+                        _pill(context: context, icon: Icons.event_rounded, label: 'Entrega: ${_fmtDdMmYy(p.fechaEstudioNecesidades)}'),
+                        _pill(context: context, icon: Icons.payments_outlined, label: _fmtMoney(p.presupuestoEstimado)),
                         if (p.departamento?.isNotEmpty == true)
-                          _pill(
-                            context: context,
-                            icon: Icons.apartment_outlined,
-                            label: p.departamento!,
-                          ),
+                          _pill(context: context, icon: Icons.apartment_outlined, label: p.departamento!),
+
+                        // NUEVO: Centro como pill
+                        _pill(
+                          context: context,
+                          icon: Icons.place_outlined,
+                          label: p.centroClave ?? '—',
+                        ),
                       ],
                     ),
                   ],
@@ -266,7 +349,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
 
             const SizedBox(height: 12),
 
-            // Observaciones (card editable)
+            // Observaciones
             Card(
               elevation: 0,
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -279,10 +362,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                     Text('Observaciones',
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 8),
-                    Text(
-                      (_observaciones?.isNotEmpty == true) ? _observaciones! : '—',
-                      style: const TextStyle(height: 1.3),
-                    ),
+                    Text((_observaciones?.isNotEmpty == true) ? _observaciones! : '—', style: const TextStyle(height: 1.3)),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -307,7 +387,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
 
             const SizedBox(height: 12),
 
-            // Datos generales
+            // Datos generales (con edición de tipo de procedimiento si aplica)
             Card(
               elevation: 0,
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -320,12 +400,41 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                     Text('Datos generales',
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 8),
+
                     _kv('Departamento', p.departamento ?? '—'),
                     _kv('Etapa', p.etapa ?? '—'),
                     _kv('Estado', p.estado ?? '—'),
-                    _kv('Tipo de procedimiento', p.tipoProcedimientoNombre ?? '—'),
+
+                    // Código y Centro
+                    _kv('Código SII', p.codigoProyectoSii ?? '—'),
+                    _kv('Centro', p.centroClave ?? '—'),
+
+                    // Línea editable: tipo de procedimiento
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: 180,
+                            child: Text('Tipo de procedimiento',
+                                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(_tipoProcNombre ?? '—')),
+                          if (widget.canEditTipoProcedimiento)
+                            IconButton(
+                              tooltip: 'Editar tipo de procedimiento',
+                              icon: const Icon(Icons.edit_rounded),
+                              onPressed: _editarTipoProcedimiento,
+                            ),
+                        ],
+                      ),
+                    ),
+
                     _kv('Entrega de especificaciones', _fmtDdMmYy(p.fechaEstudioNecesidades)),
                     if (p.numeroSolcon != null) _kv('Núm. SolCon', p.numeroSolcon!),
+                    _kv('Plazo de entrega (días)', (p.plazoEntregaDias?.toString() ?? '—')),
                   ],
                 ),
               ),
@@ -343,13 +452,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
                   child: Row(
                     children: [
-                      const Expanded(
-                        child: Text('Entrega de Especificaciones y Anexos'),
-                      ),
-                      Checkbox(
-                        value: entregaSubida,
-                        onChanged: (value) => _toggleEntrega(value!),
-                      ),
+                      const Expanded(child: Text('Entrega de Especificaciones y Anexos')),
+                      Checkbox(value: entregaSubida, onChanged: (value) => _toggleEntrega(value!)),
                     ],
                   ),
                 ),
@@ -357,14 +461,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
             else if (_vencio)
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: cs.errorContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'La fecha de entrega de especificaciones ya venció.',
-                  style: TextStyle(color: cs.onErrorContainer),
-                ),
+                decoration: BoxDecoration(color: cs.errorContainer, borderRadius: BorderRadius.circular(12)),
+                child: Text('La fecha de entrega de especificaciones ya venció.', style: TextStyle(color: cs.onErrorContainer)),
               ),
           ],
         ),
@@ -373,32 +471,17 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
   }
 
   // UI helpers
-
-  Widget _pill({
-    required BuildContext context,
-    required IconData icon,
-    required String label,
-  }) {
+  Widget _pill({required BuildContext context, required IconData icon, required String label}) {
     final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: cs.secondaryContainer,
-        borderRadius: BorderRadius.circular(999),
-      ),
+      decoration: BoxDecoration(color: cs.secondaryContainer, borderRadius: BorderRadius.circular(999)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16, color: cs.onSecondaryContainer),
           const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: cs.onSecondaryContainer,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          Text(label, style: TextStyle(color: cs.onSecondaryContainer, fontSize: 12, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -420,6 +503,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
   }
 }
 
+/* -------------- Historial Sheet -------------- */
+
 class _HistorialSheet extends StatelessWidget {
   final int proyectoId;
   final ApiService api;
@@ -437,8 +522,6 @@ class _HistorialSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       child: Column(
@@ -446,15 +529,10 @@ class _HistorialSheet extends StatelessWidget {
         children: [
           Row(
             children: [
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close),
-              ),
+              IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
               const SizedBox(width: 4),
-              Text(
-                'Historial de observaciones',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-              ),
+              Text('Historial de observaciones',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 8),
@@ -528,23 +606,13 @@ class _HistorialSheet extends StatelessWidget {
     final cs = Theme.of(ctx).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: cs.secondaryContainer,
-        borderRadius: BorderRadius.circular(999),
-      ),
+      decoration: BoxDecoration(color: cs.secondaryContainer, borderRadius: BorderRadius.circular(999)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16, color: cs.onSecondaryContainer),
           const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: cs.onSecondaryContainer,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          Text(label, style: TextStyle(color: cs.onSecondaryContainer, fontSize: 12, fontWeight: FontWeight.w600)),
         ],
       ),
     );

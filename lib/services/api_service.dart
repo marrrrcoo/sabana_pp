@@ -185,7 +185,7 @@ class ApiService {
     required double presupuesto,
     int monedaId = 1,
     int tipoProcedimientoId = 1,
-    required String plazoEntrega,
+    required int plazoEntregaDias,                 // <-- ahora es int
     required String fechaEstudioNecesidades,
     required int codigoProyectoSiiId,
     String? tipoContratacion, // 'AD' | 'SE' | 'OP'
@@ -199,7 +199,7 @@ class ApiService {
       'presupuesto_estimado': presupuesto,
       'moneda_id': monedaId,
       'tipo_procedimiento_id': tipoProcedimientoId,
-      'plazo_entrega': plazoEntrega,
+      'plazo_entrega_dias': plazoEntregaDias,     // <-- clave nueva
       'fecha_estudio_necesidades': fechaEstudioNecesidades,
       'codigo_proyecto_sii_id': codigoProyectoSiiId,
       if (tipoContratacion != null) 'tipo_contratacion': tipoContratacion,
@@ -218,6 +218,7 @@ class ApiService {
       throw Exception('Error al crear proyecto: ${response.body}');
     }
   }
+
 
   Future<void> actualizarEntregaSubida(int proyectoId, bool valor) async {
     final url = Uri.parse('$baseUrl/proyectos/$proyectoId/entrega_subida');
@@ -440,4 +441,30 @@ class ApiService {
     );
     if (res.statusCode != 200) throw Exception(res.body);
   }
+
+  Future<String?> actualizarTipoProcedimiento({
+    required int proyectoId,
+    required int tipoProcedimientoId,
+  }) async {
+    final url = Uri.parse('$baseUrl/proyectos/$proyectoId/tipo_procedimiento');
+    final res = await http.put(
+      url,
+      headers: _authJsonHeaders,
+      body: jsonEncode({
+        'tipo_procedimiento_id': tipoProcedimientoId,
+        if (actorRpe != null) 'actor_rpe': actorRpe,
+        if (actorRol != null) 'actor_rol': actorRol,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Error al actualizar tipo de procedimiento: ${res.body}');
+    }
+    try {
+      final data = jsonDecode(res.body);
+      return data['tipo_procedimiento_nombre']?.toString();
+    } catch (_) {
+      return null;
+    }
+  }
+
 }

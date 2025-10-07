@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_datetime_picker_plus/flutter_datetime_picker_plus.dart' as picker;
 import '../services/api_service.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 class ProyectoFormScreen extends StatefulWidget {
   final int rpe;
-  final String rol;          // <-- NUEVO: rol del actor ('admin'|'user'|'viewer')
+  final String rol; // 'admin' | 'user' | 'viewer'
   final String nombre;
   final int departamentoId;
 
@@ -26,7 +24,7 @@ class _ProyectoFormScreenState extends State<ProyectoFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController nombreController = TextEditingController();
   final TextEditingController presupuestoController = TextEditingController();
-  final TextEditingController plazoEntregaController = TextEditingController();
+  final TextEditingController plazoEntregaDiasController = TextEditingController(); // <- INT (días)
   final TextEditingController fechaEstudioNecesidadesController = TextEditingController();
   final TextEditingController observacionesController = TextEditingController();
 
@@ -34,53 +32,47 @@ class _ProyectoFormScreenState extends State<ProyectoFormScreen> {
   List<Map<String, dynamic>> _codigosProyecto = [];
   String? _codigoProyectoSeleccionado;
 
-  // tipo de contratación
-  String? _tipoContratacion; // 'AD' | 'SE' | 'OP'
+  // tipos de procedimiento (catálogo)
+  List<Map<String, dynamic>> _tiposProc = [];
+  int? _tipoProcIdSel;
 
-  late final ApiService _api; // <-- construido con actor
+  // tipo de contratación (AD / SE / OP)
+  String? _tipoContratacion;
+
+  late final ApiService _api;
 
   @override
   void initState() {
     super.initState();
-    // construimos el servicio con el actor para que mande x-rol / x-rpe
     _api = ApiService(actorRpe: widget.rpe, actorRol: widget.rol);
-    _obtenerCodigosProyecto();
+    _cargarCatalogos();
+  }
+
+  Future<void> _cargarCatalogos() async {
+    try {
+      final cods = await _api.getCodigosProyecto();
+      final tps = await _api.catGetTipos(); // [{id, nombre}, ...]
+
+      setState(() {
+        _codigosProyecto = List<Map<String, dynamic>>.from(cods);
+        _tiposProc = List<Map<String, dynamic>>.from(tps);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error cargando catálogos: $e')),
+      );
+    }
   }
 
   @override
   void dispose() {
     nombreController.dispose();
     presupuestoController.dispose();
-    plazoEntregaController.dispose();
+    plazoEntregaDiasController.dispose();
     fechaEstudioNecesidadesController.dispose();
     observacionesController.dispose();
     super.dispose();
-  }
-
-  Future<void> _obtenerCodigosProyecto() async {
-    final response = await http.get(Uri.parse('http://10.0.2.2:3000/codigo_proyecto'));
-    if (response.statusCode == 200) {
-      setState(() {
-        _codigosProyecto = List<Map<String, dynamic>>.from(jsonDecode(response.body));
-      });
-    } else {
-      throw Exception('Error al obtener los códigos de proyecto');
-    }
-  }
-
-  void _seleccionarFechaEntrega() async {
-    final selectedDate = await picker.DatePicker.showDatePicker(
-      context,
-      showTitleActions: true,
-      minTime: DateTime(2020, 1, 1),
-      maxTime: DateTime(2100, 12, 31),
-      locale: picker.LocaleType.es,
-    );
-    if (selectedDate != null) {
-      setState(() {
-        plazoEntregaController.text = selectedDate.toString().split(' ')[0];
-      });
-    }
   }
 
   void _seleccionarFechaEstudio() async {
@@ -101,7 +93,6 @@ class _ProyectoFormScreenState extends State<ProyectoFormScreen> {
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // seguridad extra en UI: viewer no debería poder
     if (widget.rol.toLowerCase() == 'viewer') {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No tienes permiso para crear proyectos')),
@@ -110,16 +101,22 @@ class _ProyectoFormScreenState extends State<ProyectoFormScreen> {
     }
 
     try {
+      final tipoId = _tipoProcIdSel!; // validado por el form
+      final codigoId = int.parse(_codigoProyectoSeleccionado!); // validado por el form
+      final plazoDias = int.parse(plazoEntregaDiasController.text); // validado por el form
+
       await _api.crearProyecto(
         nombre: nombreController.text.trim(),
         departamentoId: widget.departamentoId,
         presupuesto: double.parse(presupuestoController.text),
-        plazoEntrega: plazoEntregaController.text,
+        tipoProcedimientoId: tipoId,
+        plazoEntregaDias: plazoDias, // <- INT
         fechaEstudioNecesidades: fechaEstudioNecesidadesController.text,
-        codigoProyectoSiiId: int.parse(_codigoProyectoSeleccionado!),
-        tipoContratacion: _tipoContratacion,                 // AD/SE/OP
-        observaciones: observacionesController.text.trim(),  // opcional
+        codigoProyectoSiiId: codigoId,
+        tipoContratacion: _tipoContratacion,
+        observaciones: observacionesController.text.trim(),
       );
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Proyecto creado')));
       Navigator.pop(context);
@@ -132,6 +129,7 @@ class _ProyectoFormScreenState extends State<ProyectoFormScreen> {
   @override
   Widget build(BuildContext context) {
     final canCreate = widget.rol.toLowerCase() != 'viewer';
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Crear Proyecto')),
@@ -141,18 +139,58 @@ class _ProyectoFormScreenState extends State<ProyectoFormScreen> {
           key: _formKey,
           child: ListView(
             children: [
+              // Estado del proyecto (solo lectura)
+              Text('Estado del proyecto', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 6),
+              TextField(
+                controller: TextEditingController(text: '00 Planeación'),
+                readOnly: true,
+                enabled: false,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: cs.surfaceContainerHighest,
+                  disabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: cs.outlineVariant),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Nombre / Presupuesto
               TextFormField(
                 controller: nombreController,
                 decoration: const InputDecoration(labelText: 'Nombre del Proyecto'),
-                validator: (v) => v!.isEmpty ? 'Ingrese nombre' : null,
+                validator: (v) => v == null || v.isEmpty ? 'Ingrese nombre' : null,
               ),
               TextFormField(
                 controller: presupuestoController,
                 decoration: const InputDecoration(labelText: 'Presupuesto'),
                 keyboardType: TextInputType.number,
-                validator: (v) => v!.isEmpty ? 'Ingrese presupuesto' : null,
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Ingrese presupuesto';
+                  final d = double.tryParse(v);
+                  if (d == null || d <= 0) return 'Ingrese un monto válido';
+                  return null;
+                },
               ),
 
+              // Tipo de procedimiento (catálogo)
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                value: _tipoProcIdSel,
+                decoration: const InputDecoration(labelText: 'Tipo de procedimiento'),
+                items: _tiposProc
+                    .map((tp) => DropdownMenuItem<int>(
+                  value: (tp['id'] as num).toInt(),
+                  child: Text((tp['nombre'] ?? '').toString()),
+                ))
+                    .toList(),
+                onChanged: (v) => setState(() => _tipoProcIdSel = v),
+                validator: (v) => v == null ? 'Seleccione el tipo de procedimiento' : null,
+              ),
+
+              // Tipo de contratación (AD/SE/OP)
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: _tipoContratacion,
@@ -163,39 +201,49 @@ class _ProyectoFormScreenState extends State<ProyectoFormScreen> {
                   DropdownMenuItem(value: 'OP', child: Text('Obra (OP)')),
                 ],
                 onChanged: (v) => setState(() => _tipoContratacion = v),
-                validator: (v) => v == null ? 'Seleccione el tipo' : null,
+                validator: (v) => v == null ? 'Seleccione el tipo de contratación' : null,
               ),
 
+              // Plazo de entrega (días) — INT
               const SizedBox(height: 12),
               TextFormField(
-                controller: plazoEntregaController,
-                decoration: const InputDecoration(labelText: 'Plazo de Entrega'),
-                readOnly: true,
-                onTap: _seleccionarFechaEntrega,
-                validator: (v) => v!.isEmpty ? 'Seleccione la fecha' : null,
+                controller: plazoEntregaDiasController,
+                decoration: const InputDecoration(labelText: 'Plazo de entrega (días)'),
+                keyboardType: TextInputType.number,
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Ingresa el número de días';
+                  final n = int.tryParse(v);
+                  if (n == null || n <= 0) return 'Ingresa un número válido (> 0)';
+                  return null;
+                },
               ),
+
+              // Entrega de especificaciones (fecha)
+              const SizedBox(height: 12),
               TextFormField(
                 controller: fechaEstudioNecesidadesController,
                 decoration: const InputDecoration(labelText: 'Entrega de Especificaciones'),
                 readOnly: true,
                 onTap: _seleccionarFechaEstudio,
-                validator: (v) => v!.isEmpty ? 'Seleccione la fecha' : null,
+                validator: (v) => v == null || v.isEmpty ? 'Seleccione la fecha' : null,
               ),
 
+              // Código de proyecto
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: _codigoProyectoSeleccionado,
                 decoration: const InputDecoration(labelText: 'Código de Proyecto'),
-                items: _codigosProyecto.map((codigo) {
-                  return DropdownMenuItem<String>(
-                    value: codigo['id'].toString(),
-                    child: Text(codigo['codigo_proyecto_sii']),
-                  );
-                }).toList(),
+                items: _codigosProyecto
+                    .map((codigo) => DropdownMenuItem<String>(
+                  value: codigo['id'].toString(),
+                  child: Text(codigo['codigo_proyecto_sii'].toString()),
+                ))
+                    .toList(),
                 onChanged: (valor) => setState(() => _codigoProyectoSeleccionado = valor),
                 validator: (v) => v == null ? 'Seleccione un código' : null,
               ),
 
+              // Observaciones
               const SizedBox(height: 12),
               TextFormField(
                 controller: observacionesController,
