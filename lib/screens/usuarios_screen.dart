@@ -148,8 +148,6 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Usuarios'),
-        centerTitle: false,
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openUserForm(),

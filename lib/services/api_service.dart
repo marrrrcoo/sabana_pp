@@ -280,6 +280,41 @@ class ApiService {
     }
   }
 
+  // ====== Fechas (Entrega de especificaciones) ======
+
+  Future<void> actualizarFechaEntrega({
+    required int proyectoId,
+    required String fechaISO, // 'YYYY-MM-DD'
+    String? motivo,
+  }) async {
+    final url = Uri.parse('$baseUrl/proyectos/$proyectoId/fecha_entrega');
+    final res = await http.put(
+      url,
+      headers: _authJsonHeaders,
+      body: jsonEncode({
+        'fecha_estudio_necesidades': fechaISO,
+        if (motivo != null && motivo.trim().isNotEmpty) 'motivo': motivo.trim(),
+        if (actorRpe != null) 'actor_rpe': actorRpe,
+        if (actorRol != null) 'actor_rol': actorRol,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Error al actualizar fecha: ${res.body}');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getHistorialFechas(int proyectoId) async {
+    final url = Uri.parse('$baseUrl/proyectos/$proyectoId/fecha_entrega/historial');
+    final res = await http.get(url, headers: _jsonHeaders);
+    if (res.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(res.body);
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception('Error al cargar historial de fechas: ${res.body}');
+    }
+  }
+
+
   // ==============================
   // Códigos de proyecto (codigo_proyecto)
   // ==============================
@@ -466,5 +501,55 @@ class ApiService {
       return null;
     }
   }
+
+// Actualiza el ESTADO del proyecto (tabla estados_proyectos)
+  Future<Map<String, dynamic>> actualizarEstado({
+    required int proyectoId,
+    required int estadoId,
+  }) async {
+    final url = Uri.parse('$baseUrl/proyectos/$proyectoId/estado');
+    final res = await http.put(
+      url,
+      headers: _authJsonHeaders,
+      body: jsonEncode({
+        'estado_id': estadoId,
+        if (actorRpe != null) 'actor_rpe': actorRpe,
+        if (actorRol != null) 'actor_rol': actorRol,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Error al actualizar estado: ${res.body}');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+// Actualiza la ETAPA por nombre (por ejemplo, "Diam")
+  Future<Map<String, dynamic>> actualizarEtapaPorNombre({
+    required int proyectoId,
+    required String nombre,
+  }) async {
+    final url = Uri.parse('$baseUrl/proyectos/$proyectoId/etapa');
+    final res = await http.put(
+      url,
+      headers: _authJsonHeaders,
+      body: jsonEncode({
+        'nombre': nombre,
+        if (actorRpe != null) 'actor_rpe': actorRpe,
+        if (actorRol != null) 'actor_rol': actorRol,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Error al actualizar etapa: ${res.body}');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+// (Opcional) Helper para cuando completes los 3 checkboxes:
+// marca entrega_subida y cambia etapa a "Diam".
+  Future<void> completarEntregaYEtapaDiam(int proyectoId) async {
+    await actualizarEntregaSubida(proyectoId, true);
+    await actualizarEtapaPorNombre(proyectoId: proyectoId, nombre: 'Diam');
+  }
+
 
 }

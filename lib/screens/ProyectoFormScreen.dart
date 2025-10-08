@@ -179,7 +179,7 @@ class _ProyectoFormScreenState extends State<ProyectoFormScreen> {
               const SizedBox(height: 12),
               DropdownButtonFormField<int>(
                 value: _tipoProcIdSel,
-                decoration: const InputDecoration(labelText: 'Tipo de procedimiento'),
+                decoration: const InputDecoration(labelText: 'Mecanismo de contratación'),
                 items: _tiposProc
                     .map((tp) => DropdownMenuItem<int>(
                   value: (tp['id'] as num).toInt(),
@@ -187,7 +187,7 @@ class _ProyectoFormScreenState extends State<ProyectoFormScreen> {
                 ))
                     .toList(),
                 onChanged: (v) => setState(() => _tipoProcIdSel = v),
-                validator: (v) => v == null ? 'Seleccione el tipo de procedimiento' : null,
+                validator: (v) => v == null ? 'Seleccione el tipo de ejercicio' : null,
               ),
 
               // Tipo de contratación (AD/SE/OP)

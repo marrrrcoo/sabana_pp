@@ -97,7 +97,9 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
       list = list.where((p) =>
       p.nombre.toLowerCase().contains(q) ||
           (p.departamento ?? '').toLowerCase().contains(q) ||
-          (p.tipoProcedimientoNombre ?? '').toLowerCase().contains(q));
+          (p.tipoProcedimientoNombre ?? '').toLowerCase().contains(q) ||
+          (p.estado ?? '').toLowerCase().contains(q)
+      );
     }
 
     switch (_filter) {
@@ -143,7 +145,6 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Proyectos — ${widget.nombre}'),
       ),
       floatingActionButton: canCreate
           ? FloatingActionButton(
@@ -293,7 +294,7 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
-                                  '${p.etapa ?? "—"}  ·  ${p.estado ?? "—"}',
+                                  '${p.etapa ?? "—"}',
                                   style: TextStyle(
                                     color: Theme.of(context)
                                         .colorScheme
@@ -321,6 +322,11 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                                       icon: Icons.payments_outlined,
                                       label: _fmtMoney(
                                           p.presupuestoEstimado),
+                                      context: context,
+                                    ),
+                                    _pill(
+                                      icon: Icons.flag_outlined,
+                                      label: p.estado ?? '—',
                                       context: context,
                                     ),
                                     if (p.departamento?.isNotEmpty == true)

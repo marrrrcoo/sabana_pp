@@ -8,7 +8,7 @@ class DashboardScreen extends StatefulWidget {
   final int rpe;
   final String nombre;
   final int departamentoId;
-  final String rol; // <-- ahora usamos rol
+  final String rol;
 
   const DashboardScreen({
     super.key,
@@ -66,22 +66,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (isAdmin) {
       return const [
         BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Usuarios'),
-        BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'Proyectos'),
+        BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'Contrataciones'),
         BottomNavigationBarItem(icon: Icon(Icons.library_books_outlined), label: 'Catálogos'),
 
       ];
     } else {
       return const [
-        BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'Proyectos'),
+        BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'Contrataciones'),
       ];
     }
   }
 
   List<String> _titles() {
     if (isAdmin) {
-      return ['Usuarios', 'Proyectos', 'Catálogos'];
+      return ['Usuarios', 'Contrataciones', 'Catálogos'];
     } else {
-      return ['Proyectos'];
+      return ['Contrataciones'];
     }
   }
 

@@ -33,14 +33,14 @@ class _CatalogosScreenState extends State<CatalogosScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Catálogos'),
+
         bottom: TabBar(
           controller: _tab,
           tabs: const [
-            Tab(text: 'Códigos'),
+            Tab(text: 'Proyectos'),
             Tab(text: 'Puestos'),
             Tab(text: 'Estados'),
-            Tab(text: 'Tipos'),
+            Tab(text: 'Mecanismos'),
           ],
         ),
       ),
