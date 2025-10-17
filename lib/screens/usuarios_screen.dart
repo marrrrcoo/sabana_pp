@@ -147,12 +147,6 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _openUserForm(),
-        child: const Icon(Icons.add),
-      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -222,7 +216,15 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
           ],
         ),
       ),
+      floatingActionButton: _loading
+          ? null
+          : FloatingActionButton(
+        onPressed: () => _openUserForm(),
+        tooltip: 'Nuevo usuario',
+        child: const Icon(Icons.add),
+      ),
     );
+
   }
 }
 

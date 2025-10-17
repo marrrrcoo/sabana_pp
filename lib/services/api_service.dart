@@ -70,7 +70,7 @@ class ApiService {
       'puesto_id': u.puestoId,
       'correo': u.correo,
       'password': u.password,
-      'rol': u.rol, // nuevo
+      'rol': u.rol,
       'admin_rpe': adminRpe,
     };
 
@@ -93,7 +93,7 @@ class ApiService {
       'puesto_id': u.puestoId,
       'correo': u.correo,
       'password': u.password,
-      'rol': u.rol, // nuevo
+      'rol': u.rol,
       'admin_rpe': adminRpe,
     };
 
@@ -156,6 +156,7 @@ class ApiService {
     }
   }
 
+  /// (Legacy) Todos los proyectos SIN paginación.
   Future<List<Proyecto>> getTodosProyectos() async {
     final url = Uri.parse('$baseUrl/proyectos');
     final response = await http.get(url);
@@ -168,6 +169,7 @@ class ApiService {
     }
   }
 
+  /// (Legacy) Por departamento SIN paginación.
   Future<List<Proyecto>> getProyectosPorDepartamento(int deptoId) async {
     final url = Uri.parse('$baseUrl/proyectos/departamento/$deptoId');
     final response = await http.get(url, headers: _jsonHeaders);
@@ -179,13 +181,56 @@ class ApiService {
     }
   }
 
+  /// Todos los proyectos PAGINADOS + orden por proximidad de vencimiento.
+  Future<List<Proyecto>> getTodosProyectosPaged({
+    int page = 1,
+    int limit = 20,
+    String order = 'vencimiento',
+  }) async {
+    final off = (page - 1) * limit;
+    final uri = Uri.parse('$baseUrl/proyectos').replace(queryParameters: {
+      'order': order,
+      'limit': '$limit',
+      'offset': '$off',
+    });
+    final res = await http.get(uri, headers: _jsonHeaders);
+    if (res.statusCode != 200) {
+      throw Exception('Error al cargar proyectos (paginado): ${res.body}');
+    }
+    final List<dynamic> data = jsonDecode(res.body);
+    return data.map((j) => Proyecto.fromJson(j)).toList();
+  }
+
+  /// Proyectos por departamento PAGINADOS.
+  Future<List<Proyecto>> getProyectosPorDepartamentoPaged(
+      int deptoId, {
+        int page = 1,
+        int limit = 20,
+        String order = 'vencimiento',
+      }) async {
+    final off = (page - 1) * limit;
+    final uri = Uri.parse('$baseUrl/proyectos/departamento/$deptoId').replace(
+      queryParameters: {
+        'order': order,
+        'limit': '$limit',
+        'offset': '$off',
+      },
+    );
+    final res = await http.get(uri, headers: _jsonHeaders);
+    if (res.statusCode != 200) {
+      throw Exception('Error al cargar proyectos depto (paginado): ${res.body}');
+    }
+    final List<dynamic> data = jsonDecode(res.body);
+    return data.map((j) => Proyecto.fromJson(j)).toList();
+  }
+
   Future<void> crearProyecto({
     required String nombre,
     required int departamentoId,
     required double presupuesto,
     int monedaId = 1,
     int tipoProcedimientoId = 1,
-    required int plazoEntregaDias,                 // <-- ahora es int
+    required int plazoEntregaDias,
     required String fechaEstudioNecesidades,
     required int codigoProyectoSiiId,
     String? tipoContratacion, // 'AD' | 'SE' | 'OP'
@@ -199,7 +244,7 @@ class ApiService {
       'presupuesto_estimado': presupuesto,
       'moneda_id': monedaId,
       'tipo_procedimiento_id': tipoProcedimientoId,
-      'plazo_entrega_dias': plazoEntregaDias,     // <-- clave nueva
+      'plazo_entrega_dias': plazoEntregaDias,
       'fecha_estudio_necesidades': fechaEstudioNecesidades,
       'codigo_proyecto_sii_id': codigoProyectoSiiId,
       if (tipoContratacion != null) 'tipo_contratacion': tipoContratacion,
@@ -218,7 +263,6 @@ class ApiService {
       throw Exception('Error al crear proyecto: ${response.body}');
     }
   }
-
 
   Future<void> actualizarEntregaSubida(int proyectoId, bool valor) async {
     final url = Uri.parse('$baseUrl/proyectos/$proyectoId/entrega_subida');
@@ -256,7 +300,7 @@ class ApiService {
     }
   }
 
-// obtener historial de observaciones
+  // obtener historial de observaciones
   Future<List<Map<String, dynamic>>> getHistorialObservaciones(int proyectoId) async {
     final url = Uri.parse('$baseUrl/proyectos/$proyectoId/observaciones/historial');
     final res = await http.get(url, headers: _jsonHeaders);
@@ -314,28 +358,50 @@ class ApiService {
     }
   }
 
-
   // ==============================
   // Códigos de proyecto (codigo_proyecto)
   // ==============================
-  Future<List<dynamic>> getCodigosProyecto() async {
-    final url = Uri.parse('$baseUrl/codigo_proyecto');
-    final res = await http.get(url);
+
+  Future<List<Map<String, dynamic>>> getCodigosProyecto({
+    String? q,
+    int? anoInicio,
+    int? anoFin,
+  }) async {
+    final params = <String, String>{};
+    if (q != null && q.trim().isNotEmpty) params['q'] = q.trim();
+    if (anoInicio != null) params['ano_inicio'] = anoInicio.toString();
+    if (anoFin != null) params['ano_fin'] = anoFin.toString();
+
+    final uri = Uri.parse('$baseUrl/codigo_proyecto')
+        .replace(queryParameters: params.isEmpty ? null : params);
+
+    final res = await http.get(uri);
     if (res.statusCode != 200) {
       throw Exception('Error al cargar códigos: ${res.body}');
     }
-    return jsonDecode(res.body);
+
+    final raw = jsonDecode(res.body);
+    if (raw is List) {
+      return List<Map<String, dynamic>>.from(
+        raw.map((e) => Map<String, dynamic>.from(e as Map)),
+      );
+    }
+    return <Map<String, dynamic>>[];
   }
 
   Future<void> crearCodigoProyecto({
+    required String nombre,
     required String codigoProyectoSii,
-    required int ano,
-    int? adminRpe, // por si luego decides restringir por rol
+    required int anoInicio,
+    required int anoFin,
+    int? adminRpe,
   }) async {
     final url = Uri.parse('$baseUrl/codigo_proyecto');
     final body = {
+      'nombre': nombre,
       'codigo_proyecto_sii': codigoProyectoSii,
-      'ano': ano,
+      'ano_inicio': anoInicio,
+      'ano_fin': anoFin,
       if (adminRpe != null) 'admin_rpe': adminRpe,
     };
     final res = await http.post(url, headers: _jsonHeaders, body: jsonEncode(body));
@@ -346,21 +412,23 @@ class ApiService {
 
   Future<void> editarCodigoProyecto({
     required int id,
+    required String nombre,
     required String codigoProyectoSii,
-    required int ano,
+    required int anoInicio,
+    required int anoFin,
   }) async {
     final url = Uri.parse('$baseUrl/codigo_proyecto/$id');
     final body = {
+      'nombre': nombre,
       'codigo_proyecto_sii': codigoProyectoSii,
-      'ano': ano,
+      'ano_inicio': anoInicio,
+      'ano_fin': anoFin,
     };
-
     final response = await http.put(
       url,
       headers: _authJsonHeaders,
       body: jsonEncode(body),
     );
-
     if (response.statusCode != 200) {
       throw Exception('Error al actualizar código de proyecto: ${response.body}');
     }
@@ -502,28 +570,38 @@ class ApiService {
     }
   }
 
-// Actualiza el ESTADO del proyecto (tabla estados_proyectos)
+  // ==============================
+  // Cambio de estado (con motivo/ICM opcionales)
+  // ==============================
   Future<Map<String, dynamic>> actualizarEstado({
     required int proyectoId,
     required int estadoId,
+    String? motivo,         // retroceso
+    String? numeroIcm,      // requerido al activar primer estado DIAM
+    String? fechaIcmISO,    // YYYY-MM-DD, requerido al activar primer estado DIAM
   }) async {
     final url = Uri.parse('$baseUrl/proyectos/$proyectoId/estado');
+    final body = {
+      'estado_id': estadoId,
+      if (motivo != null && motivo.trim().isNotEmpty) 'motivo': motivo.trim(),
+      if (numeroIcm != null && numeroIcm.trim().isNotEmpty) 'numero_icm': numeroIcm.trim(),
+      if (fechaIcmISO != null && fechaIcmISO.trim().isNotEmpty) 'fecha_icm': fechaIcmISO.trim(),
+      if (actorRpe != null) 'actor_rpe': actorRpe,
+      if (actorRol != null) 'actor_rol': actorRol,
+    };
+
     final res = await http.put(
       url,
       headers: _authJsonHeaders,
-      body: jsonEncode({
-        'estado_id': estadoId,
-        if (actorRpe != null) 'actor_rpe': actorRpe,
-        if (actorRol != null) 'actor_rol': actorRol,
-      }),
+      body: jsonEncode(body),
     );
+
     if (res.statusCode != 200) {
       throw Exception('Error al actualizar estado: ${res.body}');
     }
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
-// Actualiza la ETAPA por nombre (por ejemplo, "Diam")
   Future<Map<String, dynamic>> actualizarEtapaPorNombre({
     required int proyectoId,
     required String nombre,
@@ -544,12 +622,21 @@ class ApiService {
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
-// (Opcional) Helper para cuando completes los 3 checkboxes:
-// marca entrega_subida y cambia etapa a "Diam".
   Future<void> completarEntregaYEtapaDiam(int proyectoId) async {
     await actualizarEntregaSubida(proyectoId, true);
     await actualizarEtapaPorNombre(proyectoId: proyectoId, nombre: 'Diam');
   }
 
-
+  // ==============================
+  // Historial de estados
+  // ==============================
+  Future<List<Map<String, dynamic>>> getHistorialEstados(int proyectoId) async {
+    final url = Uri.parse('$baseUrl/proyectos/$proyectoId/estado/historial');
+    final res = await http.get(url, headers: _authJsonHeaders);
+    if (res.statusCode != 200) {
+      throw Exception('Error al cargar historial de estados: ${res.body}');
+    }
+    final List<dynamic> data = jsonDecode(res.body);
+    return data.cast<Map<String, dynamic>>();
+  }
 }

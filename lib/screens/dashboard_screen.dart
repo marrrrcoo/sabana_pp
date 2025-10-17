@@ -22,86 +22,126 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   int _selectedIndex = 0;
 
   bool get isAdmin => widget.rol == 'admin';
   bool get isViewer => widget.rol == 'viewer';
 
-  List<Widget> _screens() {
-    if (isAdmin) {
-      return [
-        UsuariosScreen(adminRpe: widget.rpe),
-        ProyectosScreen(
-          rpe: widget.rpe,
-          nombre: widget.nombre,
-          departamentoId: widget.departamentoId,
-          rol: widget.rol,
-        ),
-        CatalogosScreen(adminRpe: widget.rpe),
-      ];
-    } else if (isViewer) {
-      return [
-        ProyectosScreen(
-          rpe: widget.rpe,
-          nombre: widget.nombre,
-          departamentoId: widget.departamentoId,
-          rol: widget.rol,
-        ),
-      ];
-    } else {
-      // user normal
-      return [
-        ProyectosScreen(
-          rpe: widget.rpe,
-          nombre: widget.nombre,
-          departamentoId: widget.departamentoId,
-          rol: widget.rol,
-        ),
-      ];
+  List<Widget> get _screens => [
+    if (isAdmin) UsuariosScreen(adminRpe: widget.rpe),
+    ProyectosScreen(
+      rpe: widget.rpe,
+      nombre: widget.nombre,
+      departamentoId: widget.departamentoId,
+      rol: widget.rol,
+    ),
+    if (isAdmin) CatalogosScreen(adminRpe: widget.rpe),
+  ];
+
+  List<BottomNavigationBarItem> get _navItems => [
+    if (isAdmin)
+      const BottomNavigationBarItem(
+          icon: Icon(Icons.people), label: 'Usuarios'),
+    const BottomNavigationBarItem(
+        icon: Icon(Icons.folder), label: 'Contrataciones'),
+    if (isAdmin)
+      const BottomNavigationBarItem(
+          icon: Icon(Icons.library_books_outlined), label: 'Catálogos'),
+  ];
+
+  List<String> get _titles => [
+    if (isAdmin) 'Usuarios',
+    'Contrataciones',
+    if (isAdmin) 'Catálogos',
+  ];
+
+  String get _roleBadge {
+    switch (widget.rol) {
+      case 'admin':
+        return 'Admin';
+      case 'viewer':
+        return 'Consulta';
+      default:
+        return 'Usuario';
     }
   }
 
-  List<BottomNavigationBarItem> _navItems() {
-    if (isAdmin) {
-      return const [
-        BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Usuarios'),
-        BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'Contrataciones'),
-        BottomNavigationBarItem(icon: Icon(Icons.library_books_outlined), label: 'Catálogos'),
-
-      ];
-    } else {
-      return const [
-        BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'Contrataciones'),
-      ];
-    }
-  }
-
-  List<String> _titles() {
-    if (isAdmin) {
-      return ['Usuarios', 'Contrataciones', 'Catálogos'];
-    } else {
-      return ['Contrataciones'];
-    }
+  Widget _appBarTitle(BuildContext context) {
+    final t = Theme.of(context);
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _titles[_selectedIndex],
+          style:
+          t.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 2),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: t.colorScheme.secondaryContainer,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                _roleBadge,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: t.colorScheme.onSecondaryContainer,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                widget.nombre,
+                style: t.textTheme.bodySmall
+                    ?.copyWith(color: t.colorScheme.onSurfaceVariant),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final screens = _screens();
-    final navItems = _navItems();
-    final titles = _titles();
+    super.build(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${titles[_selectedIndex]} - ${widget.nombre}'),
+        toolbarHeight: 64,
+        elevation: 0,
+        centerTitle: false,
+        titleSpacing: 12,
+        surfaceTintColor: Colors.transparent,
+        title: _appBarTitle(context),
         actions: const [LogoutButton()],
       ),
-      body: screens[_selectedIndex],
-      bottomNavigationBar: navItems.length >= 2
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _screens,
+      ),
+      bottomNavigationBar: _navItems.length >= 2
           ? BottomNavigationBar(
         currentIndex: _selectedIndex,
-        items: navItems,
-        onTap: (index) => setState(() => _selectedIndex = index),
+        items: _navItems,
+        type: BottomNavigationBarType.fixed,
+        onTap: (i) => setState(() => _selectedIndex = i),
       )
           : null,
     );

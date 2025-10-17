@@ -160,7 +160,7 @@ class _ProyectoFormScreenState extends State<ProyectoFormScreen> {
               // Nombre / Presupuesto
               TextFormField(
                 controller: nombreController,
-                decoration: const InputDecoration(labelText: 'Nombre del Proyecto'),
+                decoration: const InputDecoration(labelText: 'Concepto de la contratación'),
                 validator: (v) => v == null || v.isEmpty ? 'Ingrese nombre' : null,
               ),
               TextFormField(
@@ -222,7 +222,7 @@ class _ProyectoFormScreenState extends State<ProyectoFormScreen> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: fechaEstudioNecesidadesController,
-                decoration: const InputDecoration(labelText: 'Entrega de Especificaciones'),
+                decoration: const InputDecoration(labelText: 'Entrega de especificaciones'),
                 readOnly: true,
                 onTap: _seleccionarFechaEstudio,
                 validator: (v) => v == null || v.isEmpty ? 'Seleccione la fecha' : null,
@@ -232,7 +232,7 @@ class _ProyectoFormScreenState extends State<ProyectoFormScreen> {
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: _codigoProyectoSeleccionado,
-                decoration: const InputDecoration(labelText: 'Código de Proyecto'),
+                decoration: const InputDecoration(labelText: 'Código de proyecto'),
                 items: _codigosProyecto
                     .map((codigo) => DropdownMenuItem<String>(
                   value: codigo['id'].toString(),

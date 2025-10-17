@@ -48,7 +48,12 @@ class Proyecto {
   final String? centroClave;                   // p.ej. GT19
 
   // Dueño del proyecto (quien lo creó)
-  final int? creadorRpe;
+  final int? creadorRpe;        // alias: creado_por_rpe (según backend)
+  final String? creadoPorNombre;
+
+  // NUEVO: ICM
+  final String? fechaIcm;       // columna: fecha_icm
+  final String? numeroIcm;      // columna: numero_icm
 
   Proyecto({
     required this.id,
@@ -86,10 +91,12 @@ class Proyecto {
     this.centroId,
     this.centroClave,
     this.creadorRpe,
+    this.creadoPorNombre,
     this.tipoContratacion,
+    this.fechaIcm,
+    this.numeroIcm,
   });
 
-  /// Indica si la fecha_estudio_necesidades ya venció.
   bool get vencio {
     final s = fechaEstudioNecesidades;
     if (s == null || s.isEmpty) return false;
@@ -101,8 +108,6 @@ class Proyecto {
     return hh.isAfter(fh);
   }
 
-  /// Formatea la fecha_estudio_necesidades en dd/MM/yy.
-  /// Si es nula o no parseable, devuelve '—'.
   String get fechaEstudioNecesidadesDdMmYy {
     final s = fechaEstudioNecesidades;
     if (s == null || s.isEmpty) return '—';
@@ -188,8 +193,16 @@ class Proyecto {
       centroId: _asIntOrNull(json['centro_id']),
       centroClave: json['centro_clave']?.toString(),
 
-      creadorRpe: _asIntOrNull(json['creador_rpe']),
+      // alias para mayor compatibilidad con backend
+      creadorRpe: _asIntOrNull(json['creador_rpe'] ?? json['creado_por_rpe']),
+      creadoPorNombre: json['creado_por_nombre']?.toString() ??
+          json['creador_nombre']?.toString(),
+
       tipoContratacion: json['tipo_contratacion']?.toString(),
+
+      // <-- CORRECCIONES (sin helper inexistente)
+      fechaIcm: json['fecha_icm']?.toString(),
+      numeroIcm: json['numero_icm']?.toString(),
     );
   }
 }

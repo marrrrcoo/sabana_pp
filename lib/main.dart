@@ -57,7 +57,7 @@ class SabanaApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Sabana de Proyectos',
 
-      // 👇 Agrega estas tres propiedades
+
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
