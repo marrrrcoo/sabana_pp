@@ -19,8 +19,8 @@ class Proyecto {
   final double? importeAnticipo;
   final String? adquisicionServicioObra;
   final String? solicitudPAC;
-  final int? plazoEntregaDias; // <-- INT (número de días)
-  final String? fechaEstudioNecesidades; // deadline notificaciones
+  final int? plazoEntregaDias;
+  final String? fechaEstudioNecesidades;
   final String? fechaConclusionEstudio;
   final String? fechaSolicitudICM;
   final String? fechaAperturaTecnica;
@@ -34,27 +34,25 @@ class Proyecto {
   final String? observaciones;
   final bool entregaSubida;
 
-  // Desnormalizados del JOIN (opcionales)
+  // Desnormalizados del JOIN
   final String? departamento;
   final String? estado;
   final String? etapa;
-
-  // Nombre legible del tipo de procedimiento (JOIN a tipos_procedimiento)
   final String? tipoProcedimientoNombre;
 
-  // Código SII y Centro (JOIN a codigo_proyectos_sii -> centros)
-  final String? codigoProyectoSii; // p.ej. MG-E2-24-GT19-92
-  final int? centroId; // id en tabla centros
-  final String? centroClave; // p.ej. GT19
-  final int? codigoProyectoAnoFin;
+  // Código SII y Centro
+  final String? codigoProyectoSii;
+  final int? centroId;
+  final String? centroClave;
+  final String? codigoProyectoAnoFin; // <-- CORREGIDO a String?
 
-  // Dueño del proyecto (quien lo creó)
-  final int? creadorRpe; // alias: creado_por_rpe (según backend)
+  // Dueño del proyecto
+  final int? creadorRpe;
   final String? creadoPorNombre;
 
-  // NUEVO: ICM
-  final String? fechaIcm; // columna: fecha_icm
-  final String? numeroIcm; // columna: numero_icm
+  // ICM
+  final String? fechaIcm;
+  final String? numeroIcm;
 
   Proyecto({
     required this.id,
@@ -118,37 +116,11 @@ class Proyecto {
     return DateFormat('dd/MM/yy').format(dt);
   }
 
-  // Helpers de parseo seguros
-  static int _asInt(dynamic v) {
-    if (v is int) return v;
-    if (v is String) return int.tryParse(v) ?? 0;
-    return 0;
-  }
-
-  static int? _asIntOrNull(dynamic v) {
-    if (v == null) return null;
-    if (v is int) return v;
-    if (v is String) return int.tryParse(v);
-    return null;
-  }
-
-  static double? _asDoubleOrNull(dynamic v) {
-    if (v == null) return null;
-    if (v is num) return v.toDouble();
-    if (v is String) return double.tryParse(v);
-    return null;
-  }
-
-  static bool _asBool01(dynamic v) {
-    if (v is bool) return v;
-    if (v is int) return v == 1;
-    if (v is String) {
-      final s = v.toLowerCase();
-      if (s == '1' || s == 'true') return true;
-      if (s == '0' || s == 'false') return false;
-    }
-    return false;
-  }
+  // Helpers de parseo
+  static int _asInt(dynamic v) => (v is int) ? v : int.tryParse(v?.toString() ?? '0') ?? 0;
+  static int? _asIntOrNull(dynamic v) => (v is int) ? v : int.tryParse(v?.toString() ?? '');
+  static double? _asDoubleOrNull(dynamic v) => (v is num) ? v.toDouble() : double.tryParse(v?.toString() ?? '');
+  static bool _asBool01(dynamic v) => v == 1 || v == true || v == '1' || v == 'true';
 
   factory Proyecto.fromJson(Map<String, dynamic> json) {
     return Proyecto(
@@ -173,8 +145,7 @@ class Proyecto {
       fechaAperturaTecnica: json['fecha_apertura_tecnica']?.toString(),
       fechaAperturaEconomica: json['fecha_apertura_economica']?.toString(),
       fechaFallo: json['fecha_fallo']?.toString(),
-      fechaFormalizacionContrato:
-      json['fecha_formalizacion_contrato']?.toString(),
+      fechaFormalizacionContrato: json['fecha_formalizacion_contrato']?.toString(),
       fechaPago: json['fecha_pago']?.toString(),
       numeroContrato: json['numero_contrato']?.toString(),
       importeAdjudicado: _asDoubleOrNull(json['importe_adjudicado']),
@@ -187,10 +158,9 @@ class Proyecto {
       codigoProyectoSii: json['codigo_proyecto_sii']?.toString(),
       centroId: _asIntOrNull(json['centro_id']),
       centroClave: json['centro_clave']?.toString(),
-      codigoProyectoAnoFin: _asIntOrNull(json['ano_fin']),
+      codigoProyectoAnoFin: json['ano_fin']?.toString(), // <-- CORREGIDO
       creadorRpe: _asIntOrNull(json['creador_rpe'] ?? json['creado_por_rpe']),
-      creadoPorNombre: json['creado_por_nombre']?.toString() ??
-          json['creador_nombre']?.toString(),
+      creadoPorNombre: json['creado_por_nombre']?.toString() ?? json['creador_nombre']?.toString(),
       tipoContratacion: json['tipo_contratacion']?.toString(),
       fechaIcm: json['fecha_icm']?.toString(),
       numeroIcm: json['numero_icm']?.toString(),

@@ -6,7 +6,7 @@ import '../models/departamento.dart';
 import '../models/puesto.dart';
 
 class ApiService {
-  final String baseUrl = 'http://192.168.1.87:3000';
+  final String baseUrl = 'http://10.0.2.2:3000';
 
   /// Contexto del actor autenticado. Úsalo tras login.
   /// Ej.: ApiService(actorRpe: user.rpe, actorRol: user.rol)
@@ -156,7 +156,6 @@ class ApiService {
     }
   }
 
-  /// (Legacy) Todos los proyectos SIN paginación.
   Future<List<Proyecto>> getTodosProyectos() async {
     final url = Uri.parse('$baseUrl/proyectos');
     final response = await http.get(url);
@@ -169,7 +168,6 @@ class ApiService {
     }
   }
 
-  /// (Legacy) Por departamento SIN paginación.
   Future<List<Proyecto>> getProyectosPorDepartamento(int deptoId) async {
     final url = Uri.parse('$baseUrl/proyectos/departamento/$deptoId');
     final response = await http.get(url, headers: _jsonHeaders);
@@ -181,7 +179,6 @@ class ApiService {
     }
   }
 
-  /// Todos los proyectos PAGINADOS + orden por proximidad de vencimiento.
   Future<List<Proyecto>> getTodosProyectosPaged({
     int page = 1,
     int limit = 20,
@@ -201,7 +198,6 @@ class ApiService {
     return data.map((j) => Proyecto.fromJson(j)).toList();
   }
 
-  /// Proyectos por departamento PAGINADOS.
   Future<List<Proyecto>> getProyectosPorDepartamentoPaged(
       int deptoId, {
         int page = 1,
@@ -233,7 +229,7 @@ class ApiService {
     required int plazoEntregaDias,
     required String fechaEstudioNecesidades,
     required int codigoProyectoSiiId,
-    String? tipoContratacion, // 'AD' | 'SE' | 'OP'
+    String? tipoContratacion,
     String? observaciones,
   }) async {
     final url = Uri.parse('$baseUrl/proyectos');
@@ -280,7 +276,6 @@ class ApiService {
     }
   }
 
-  // actualizar observaciones con historial
   Future<void> actualizarObservaciones({
     required int proyectoId,
     required String observaciones,
@@ -300,7 +295,6 @@ class ApiService {
     }
   }
 
-  // obtener historial de observaciones
   Future<List<Map<String, dynamic>>> getHistorialObservaciones(int proyectoId) async {
     final url = Uri.parse('$baseUrl/proyectos/$proyectoId/observaciones/historial');
     final res = await http.get(url, headers: _jsonHeaders);
@@ -324,11 +318,9 @@ class ApiService {
     }
   }
 
-  // ====== Fechas (Entrega de especificaciones) ======
-
   Future<void> actualizarFechaEntrega({
     required int proyectoId,
-    required String fechaISO, // 'YYYY-MM-DD'
+    required String fechaISO,
     String? motivo,
   }) async {
     final url = Uri.parse('$baseUrl/proyectos/$proyectoId/fecha_entrega');
@@ -364,13 +356,13 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> getCodigosProyecto({
     String? q,
-    int? anoInicio,
-    int? anoFin,
+    String? anoInicio,
+    String? anoFin,
   }) async {
     final params = <String, String>{};
     if (q != null && q.trim().isNotEmpty) params['q'] = q.trim();
-    if (anoInicio != null) params['ano_inicio'] = anoInicio.toString();
-    if (anoFin != null) params['ano_fin'] = anoFin.toString();
+    if (anoInicio != null) params['ano_inicio'] = anoInicio;
+    if (anoFin != null) params['ano_fin'] = anoFin;
 
     final uri = Uri.parse('$baseUrl/codigo_proyecto')
         .replace(queryParameters: params.isEmpty ? null : params);
@@ -392,8 +384,8 @@ class ApiService {
   Future<void> crearCodigoProyecto({
     required String nombre,
     required String codigoProyectoSii,
-    required int anoInicio,
-    required int anoFin,
+    required String anoInicio,
+    required String anoFin,
     int? adminRpe,
   }) async {
     final url = Uri.parse('$baseUrl/codigo_proyecto');
@@ -414,8 +406,8 @@ class ApiService {
     required int id,
     required String nombre,
     required String codigoProyectoSii,
-    required int anoInicio,
-    required int anoFin,
+    required String anoInicio,
+    required String anoFin,
   }) async {
     final url = Uri.parse('$baseUrl/codigo_proyecto/$id');
     final body = {
@@ -447,9 +439,8 @@ class ApiService {
   }
 
   // ==============================
-  // Catálogos (CRUD solo Admin): Puestos / Estados / Tipos
+  // Catálogos
   // ==============================
-  // ---- Puestos ----
   Future<List<dynamic>> catGetPuestos() async {
     final res = await http.get(Uri.parse('$baseUrl/catalogos/puestos'));
     if (res.statusCode != 200) throw Exception(res.body);
@@ -481,7 +472,6 @@ class ApiService {
     if (res.statusCode != 200) throw Exception(res.body);
   }
 
-  // ---- Estados de proyecto ----
   Future<List<dynamic>> catGetEstados() async {
     final res = await http.get(Uri.parse('$baseUrl/catalogos/estados'));
     if (res.statusCode != 200) throw Exception(res.body);
@@ -513,7 +503,6 @@ class ApiService {
     if (res.statusCode != 200) throw Exception(res.body);
   }
 
-  // ---- Tipos de contratación (tipos_procedimiento) ----
   Future<List<dynamic>> catGetTipos() async {
     final res = await http.get(Uri.parse('$baseUrl/catalogos/tipos'));
     if (res.statusCode != 200) throw Exception(res.body);
@@ -570,15 +559,12 @@ class ApiService {
     }
   }
 
-  // ==============================
-  // Cambio de estado (con motivo/ICM opcionales)
-  // ==============================
   Future<Map<String, dynamic>> actualizarEstado({
     required int proyectoId,
     required int estadoId,
-    String? motivo,         // retroceso
-    String? numeroIcm,      // requerido al activar primer estado DIAM
-    String? fechaIcmISO,    // YYYY-MM-DD, requerido al activar primer estado DIAM
+    String? motivo,
+    String? numeroIcm,
+    String? fechaIcmISO,
   }) async {
     final url = Uri.parse('$baseUrl/proyectos/$proyectoId/estado');
     final body = {
@@ -627,9 +613,6 @@ class ApiService {
     await actualizarEtapaPorNombre(proyectoId: proyectoId, nombre: 'Diam');
   }
 
-  // ==============================
-  // Historial de estados
-  // ==============================
   Future<List<Map<String, dynamic>>> getHistorialEstados(int proyectoId) async {
     final url = Uri.parse('$baseUrl/proyectos/$proyectoId/estado/historial');
     final res = await http.get(url, headers: _authJsonHeaders);

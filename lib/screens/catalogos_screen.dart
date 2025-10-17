@@ -1,5 +1,6 @@
 // lib/screens/catalogos_screen.dart
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 
 class CatalogosScreen extends StatefulWidget {
@@ -39,6 +40,7 @@ class _CatalogosScreenState extends State<CatalogosScreen>
               color: cs.surface,
               child: TabBar(
                 controller: _tab,
+                isScrollable: true, // Para pantallas pequeñas
                 tabs: const [
                   Tab(text: 'Proyectos'),
                   Tab(text: 'Puestos'),
@@ -82,10 +84,9 @@ class _CodigosTabState extends State<_CodigosTab> {
 
   // Filtros
   final _qCtrl = TextEditingController();
-  final _fInicioCtrl = TextEditingController();
-  final _fFinCtrl = TextEditingController();
+  DateTime? _filterFechaInicio;
+  DateTime? _filterFechaFin;
 
-  // Plegado/expandido de la tarjeta de filtros
   bool _filtersOpen = false;
 
   @override
@@ -97,8 +98,6 @@ class _CodigosTabState extends State<_CodigosTab> {
   @override
   void dispose() {
     _qCtrl.dispose();
-    _fInicioCtrl.dispose();
-    _fFinCtrl.dispose();
     super.dispose();
   }
 
@@ -106,12 +105,13 @@ class _CodigosTabState extends State<_CodigosTab> {
     setState(() => _loading = true);
     try {
       final q = _qCtrl.text.trim().isEmpty ? null : _qCtrl.text.trim();
-      final ai = int.tryParse(_fInicioCtrl.text.trim());
-      final af = int.tryParse(_fFinCtrl.text.trim());
+      final ai = _filterFechaInicio != null ? DateFormat('yyyy-MM-dd').format(_filterFechaInicio!) : null;
+      final af = _filterFechaFin != null ? DateFormat('yyyy-MM-dd').format(_filterFechaFin!) : null;
+
       final data = await api.getCodigosProyecto(q: q, anoInicio: ai, anoFin: af);
       if (!mounted) return;
       setState(() {
-        _items = data; // si tu ApiService devuelve List<Map<String, dynamic>>
+        _items = data;
         _loading = false;
       });
     } catch (e) {
@@ -122,13 +122,15 @@ class _CodigosTabState extends State<_CodigosTab> {
   }
 
   void _limpiarFiltros() {
-    _qCtrl.clear();
-    _fInicioCtrl.clear();
-    _fFinCtrl.clear();
+    setState(() {
+      _qCtrl.clear();
+      _filterFechaInicio = null;
+      _filterFechaFin = null;
+    });
     _load();
   }
+
   Future<void> _eliminar(int id) async {
-    // Confirmación opcional
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -158,13 +160,12 @@ class _CodigosTabState extends State<_CodigosTab> {
     }
   }
 
-
   Future<void> _openCrear() async {
     final formKey = GlobalKey<FormState>();
     final nombreCtrl = TextEditingController();
     final codigoCtrl = TextEditingController();
-    final inicioCtrl = TextEditingController();
-    final finCtrl = TextEditingController();
+    DateTime? fechaInicio;
+    DateTime? fechaFin;
 
     final ok = await showModalBottomSheet<bool>(
       context: context,
@@ -176,96 +177,120 @@ class _CodigosTabState extends State<_CodigosTab> {
       ),
       builder: (ctx) {
         final insets = MediaQuery.of(ctx).viewInsets.bottom;
-        return Padding(
-          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + insets),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    IconButton(onPressed: () => Navigator.pop(ctx, false), icon: const Icon(Icons.close)),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Nuevo código de proyecto',
-                      style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: nombreCtrl,
-                  decoration: const InputDecoration(labelText: 'Nombre'),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: codigoCtrl,
-                  decoration: const InputDecoration(labelText: 'Código de proyecto SII'),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: inicioCtrl,
-                        decoration: const InputDecoration(labelText: 'Año inicio'),
-                        keyboardType: TextInputType.number,
-                        validator: (v) {
-                          final n = int.tryParse((v ?? '').trim());
-                          return n == null ? 'Inválido' : null;
-                        },
+        return StatefulBuilder(
+            builder: (modalContext, setModalState) {
+              return Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + insets),
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          IconButton(onPressed: () => Navigator.pop(ctx, false), icon: const Icon(Icons.close)),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Nuevo código de proyecto',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: finCtrl,
-                        decoration: const InputDecoration(labelText: 'Año fin'),
-                        keyboardType: TextInputType.number,
-                        validator: (v) {
-                          final n = int.tryParse((v ?? '').trim());
-                          return n == null ? 'Inválido' : null;
-                        },
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: nombreCtrl,
+                        decoration: const InputDecoration(labelText: 'Nombre'),
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: codigoCtrl,
+                        decoration: const InputDecoration(labelText: 'Código de proyecto SII'),
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: fechaInicio ?? DateTime.now(),
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2100),
+                                );
+                                if (picked != null) {
+                                  setModalState(() => fechaInicio = picked);
+                                }
+                              },
+                              child: InputDecorator(
+                                decoration: const InputDecoration(labelText: 'Fecha inicio'),
+                                child: Text(fechaInicio == null ? 'Seleccionar' : DateFormat('yyyy-MM-dd').format(fechaInicio!)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: fechaFin ?? fechaInicio ?? DateTime.now(),
+                                  firstDate: fechaInicio ?? DateTime(2020),
+                                  lastDate: DateTime(2100),
+                                );
+                                if (picked != null) {
+                                  setModalState(() => fechaFin = picked);
+                                }
+                              },
+                              child: InputDecorator(
+                                decoration: const InputDecoration(labelText: 'Fecha fin'),
+                                child: Text(fechaFin == null ? 'Seleccionar' : DateFormat('yyyy-MM-dd').format(fechaFin!)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('CANCELAR'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: () {
+                                if (!formKey.currentState!.validate()) return;
+                                if (fechaInicio == null || fechaFin == null) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Debes seleccionar ambas fechas')));
+                                  return;
+                                }
+                                if (fechaInicio!.isAfter(fechaFin!)) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('La fecha de inicio no puede ser posterior a la de fin')));
+                                  return;
+                                }
+                                Navigator.pop(ctx, true);
+                              },
+                              icon: const Icon(Icons.save_outlined),
+                              label: const Text('GUARDAR'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('CANCELAR'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () {
-                          if (!formKey.currentState!.validate()) return;
-                          final ai = int.parse(inicioCtrl.text.trim());
-                          final af = int.parse(finCtrl.text.trim());
-                          if (ai > af) {
-                            ScaffoldMessenger.of(ctx).showSnackBar(
-                              const SnackBar(content: Text('Año inicio no puede ser mayor que año fin')),
-                            );
-                            return;
-                          }
-                          Navigator.pop(ctx, true);
-                        },
-                        icon: const Icon(Icons.save_outlined),
-                        label: const Text('GUARDAR'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+              );
+            }
         );
       },
     );
@@ -275,8 +300,8 @@ class _CodigosTabState extends State<_CodigosTab> {
         await api.crearCodigoProyecto(
           nombre: nombreCtrl.text.trim(),
           codigoProyectoSii: codigoCtrl.text.trim(),
-          anoInicio: int.parse(inicioCtrl.text.trim()),
-          anoFin: int.parse(finCtrl.text.trim()),
+          anoInicio: DateFormat('yyyy-MM-dd').format(fechaInicio!),
+          anoFin: DateFormat('yyyy-MM-dd').format(fechaFin!),
           adminRpe: widget.adminRpe,
         );
         await _load();
@@ -295,8 +320,8 @@ class _CodigosTabState extends State<_CodigosTab> {
     final formKey = GlobalKey<FormState>();
     final nombreCtrl = TextEditingController(text: item['nombre']?.toString() ?? '');
     final codigoCtrl = TextEditingController(text: item['codigo_proyecto_sii']?.toString() ?? '');
-    final inicioCtrl = TextEditingController(text: (item['ano_inicio'] ?? '').toString());
-    final finCtrl = TextEditingController(text: (item['ano_fin'] ?? '').toString());
+    DateTime? fechaInicio = DateTime.tryParse(item['ano_inicio']?.toString() ?? '');
+    DateTime? fechaFin = DateTime.tryParse(item['ano_fin']?.toString() ?? '');
 
     final ok = await showModalBottomSheet<bool>(
       context: context,
@@ -306,90 +331,120 @@ class _CodigosTabState extends State<_CodigosTab> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) {
         final insets = MediaQuery.of(ctx).viewInsets.bottom;
-        return Padding(
-          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + insets),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    IconButton(onPressed: () => Navigator.pop(ctx, false), icon: const Icon(Icons.close)),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Editar código de proyecto',
-                      style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: nombreCtrl,
-                  decoration: const InputDecoration(labelText: 'Nombre'),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: codigoCtrl,
-                  decoration: const InputDecoration(labelText: 'Código de proyecto SII'),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: inicioCtrl,
-                        decoration: const InputDecoration(labelText: 'Año inicio'),
-                        keyboardType: TextInputType.number,
-                        validator: (v) => int.tryParse((v ?? '').trim()) == null ? 'Inválido' : null,
+        return StatefulBuilder(
+            builder: (modalContext, setModalState) {
+              return Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + insets),
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          IconButton(onPressed: () => Navigator.pop(ctx, false), icon: const Icon(Icons.close)),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Editar código de proyecto',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: finCtrl,
-                        decoration: const InputDecoration(labelText: 'Año fin'),
-                        keyboardType: TextInputType.number,
-                        validator: (v) => int.tryParse((v ?? '').trim()) == null ? 'Inválido' : null,
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: nombreCtrl,
+                        decoration: const InputDecoration(labelText: 'Nombre'),
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: codigoCtrl,
+                        decoration: const InputDecoration(labelText: 'Código de proyecto SII'),
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: fechaInicio ?? DateTime.now(),
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2100),
+                                );
+                                if (picked != null) {
+                                  setModalState(() => fechaInicio = picked);
+                                }
+                              },
+                              child: InputDecorator(
+                                decoration: const InputDecoration(labelText: 'Fecha inicio'),
+                                child: Text(fechaInicio == null ? 'Seleccionar' : DateFormat('yyyy-MM-dd').format(fechaInicio!)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: fechaFin ?? fechaInicio ?? DateTime.now(),
+                                  firstDate: fechaInicio ?? DateTime(2020),
+                                  lastDate: DateTime(2100),
+                                );
+                                if (picked != null) {
+                                  setModalState(() => fechaFin = picked);
+                                }
+                              },
+                              child: InputDecorator(
+                                decoration: const InputDecoration(labelText: 'Fecha fin'),
+                                child: Text(fechaFin == null ? 'Seleccionar' : DateFormat('yyyy-MM-dd').format(fechaFin!)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('CANCELAR'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: () {
+                                if (!formKey.currentState!.validate()) return;
+                                if (fechaInicio == null || fechaFin == null) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Debes seleccionar ambas fechas')));
+                                  return;
+                                }
+                                if (fechaInicio!.isAfter(fechaFin!)) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('La fecha de inicio no puede ser posterior a la de fin')));
+                                  return;
+                                }
+                                Navigator.pop(ctx, true);
+                              },
+                              icon: const Icon(Icons.save_outlined),
+                              label: const Text('GUARDAR'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('CANCELAR'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () {
-                          if (!formKey.currentState!.validate()) return;
-                          final ai = int.parse(inicioCtrl.text.trim());
-                          final af = int.parse(finCtrl.text.trim());
-                          if (ai > af) {
-                            ScaffoldMessenger.of(ctx).showSnackBar(
-                              const SnackBar(content: Text('Año inicio no puede ser mayor que año fin')),
-                            );
-                            return;
-                          }
-                          Navigator.pop(ctx, true);
-                        },
-                        icon: const Icon(Icons.save_outlined),
-                        label: const Text('GUARDAR'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+              );
+            }
         );
       },
     );
@@ -400,8 +455,8 @@ class _CodigosTabState extends State<_CodigosTab> {
           id: item['id'] as int,
           nombre: nombreCtrl.text.trim(),
           codigoProyectoSii: codigoCtrl.text.trim(),
-          anoInicio: int.parse(inicioCtrl.text.trim()),
-          anoFin: int.parse(finCtrl.text.trim()),
+          anoInicio: DateFormat('yyyy-MM-dd').format(fechaInicio!),
+          anoFin: DateFormat('yyyy-MM-dd').format(fechaFin!),
         );
         await _load();
         if (!mounted) return;
@@ -413,23 +468,6 @@ class _CodigosTabState extends State<_CodigosTab> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
-  }
-
-  // ---- helpers de UI compacta ----
-  InputDecoration _dense({
-    String? label,
-    String? hint,
-    IconData? prefixIcon,
-  }) {
-    return InputDecoration(
-      labelText: label,
-      hintText: hint,
-      isDense: true,
-      border: const OutlineInputBorder(),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      prefixIcon: prefixIcon != null ? Icon(prefixIcon, size: 18) : null,
-      prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-    );
   }
 
   ButtonStyle _compactBtn(BuildContext ctx) => FilledButton.styleFrom(
@@ -444,6 +482,18 @@ class _CodigosTabState extends State<_CodigosTab> {
     visualDensity: VisualDensity.compact,
   );
 
+  // --------- NUEVO: formateo corto de fechas para los chips ---------
+  String _fmtDateShort(String? raw) {
+    if (raw == null || raw.isEmpty) return '—';
+    final dt = DateTime.tryParse(raw);
+    if (dt == null) {
+      // Fallback: si no parsea, recorta a 10 chars si viene en ISO largo
+      return raw.length > 10 ? raw.substring(0, 10) : raw;
+    }
+    // Muestra local en yyyy-MM-dd
+    return DateFormat('yyyy-MM-dd').format(dt.toLocal());
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -454,7 +504,6 @@ class _CodigosTabState extends State<_CodigosTab> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // ----- Filtros plegables -----
           AnimatedCrossFade(
             duration: const Duration(milliseconds: 180),
             crossFadeState: _filtersOpen ? CrossFadeState.showSecond : CrossFadeState.showFirst,
@@ -489,7 +538,6 @@ class _CodigosTabState extends State<_CodigosTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // barra superior con "Ocultar" y acceso a "Nuevo"
                     Row(
                       children: [
                         const Icon(Icons.tune, size: 18),
@@ -514,56 +562,71 @@ class _CodigosTabState extends State<_CodigosTab> {
                     ),
                     const SizedBox(height: 8),
 
-                    // Contenido de filtros (compacto)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 260,
-                          child: TextField(
-                            controller: _qCtrl,
-                            textInputAction: TextInputAction.search,
-                            decoration: _dense(
-                              hint: 'Buscar por nombre o código…',
-                              prefixIcon: Icons.search,
-                            ),
-                            onSubmitted: (_) => _load(),
-                          ),
-                        ),
-                        SizedBox(
-                          width: 110,
-                          child: TextField(
-                            controller: _fInicioCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: _dense(label: 'Año ≥'),
-                            onSubmitted: (_) => _load(),
-                          ),
-                        ),
-                        SizedBox(
-                          width: 110,
-                          child: TextField(
-                            controller: _fFinCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: _dense(label: 'Año ≤'),
-                            onSubmitted: (_) => _load(),
-                          ),
-                        ),
-                        FilledButton.tonalIcon(
-                          style: _compactBtn(context),
-                          onPressed: _load,
-                          icon: const Icon(Icons.filter_alt),
-                          label: const Text('Aplicar'),
-                        ),
-                        TextButton.icon(
-                          style: _compactTextBtn(context),
-                          onPressed: _limpiarFiltros,
-                          icon: const Icon(Icons.clear),
-                          label: const Text('Limpiar'),
-                        ),
-                      ],
-                    ),
+                    // --- Filtros ---
+                    LayoutBuilder(
+                        builder: (context, constraints) {
+                          if (constraints.maxWidth < 600) {
+                            return Column(
+                              children: [
+                                TextField(
+                                  controller: _qCtrl,
+                                  textInputAction: TextInputAction.search,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Buscar por nombre o código…',
+                                    prefixIcon: Icon(Icons.search),
+                                    isDense: true,
+                                  ),
+                                  onSubmitted: (_) => _load(),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(child: _buildDatePicker(context, isStart: true)),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: _buildDatePicker(context, isStart: false)),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    TextButton(onPressed: _limpiarFiltros, child: const Text('Limpiar')),
+                                    const SizedBox(width: 8),
+                                    FilledButton.tonal(onPressed: _load, child: const Text('Aplicar')),
+                                  ],
+                                ),
+                              ],
+                            );
+                          }
+                          // Vista grande
+                          return Row(
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: TextField(
+                                  controller: _qCtrl,
+                                  textInputAction: TextInputAction.search,
+                                  decoration: const InputDecoration(
+                                    hintText: 'Buscar por nombre o código…',
+                                    prefixIcon: Icon(Icons.search),
+                                    isDense: true,
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onSubmitted: (_) => _load(),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 2, child: _buildDatePicker(context, isStart: true)),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 2, child: _buildDatePicker(context, isStart: false)),
+                              const SizedBox(width: 8),
+                              FilledButton.tonal(onPressed: _load, child: const Text('Aplicar')),
+                              const SizedBox(width: 8),
+                              TextButton(onPressed: _limpiarFiltros, child: const Text('Limpiar')),
+                            ],
+                          );
+                        }
+                    )
                   ],
                 ),
               ),
@@ -583,8 +646,11 @@ class _CodigosTabState extends State<_CodigosTab> {
                 final it = _items[i];
                 final nombre = it['nombre']?.toString() ?? '—';
                 final codigo = it['codigo_proyecto_sii']?.toString() ?? '—';
-                final ai = it['ano_inicio']?.toString() ?? '—';
-                final af = it['ano_fin']?.toString() ?? '—';
+
+                // ---- Usamos el formateo corto para evitar overflow ----
+                final ai = _fmtDateShort(it['ano_inicio']?.toString());
+                final af = _fmtDateShort(it['ano_fin']?.toString());
+
                 final centro = (it['centro_clave'] ?? '').toString();
 
                 return Card(
@@ -635,6 +701,42 @@ class _CodigosTabState extends State<_CodigosTab> {
     );
   }
 
+  Widget _buildDatePicker(BuildContext context, {required bool isStart}) {
+    final date = isStart ? _filterFechaInicio : _filterFechaFin;
+    final label = isStart ? 'Desde' : 'Hasta';
+
+    return InkWell(
+      onTap: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: date ?? DateTime.now(),
+          firstDate: DateTime(2020),
+          lastDate: DateTime(2100),
+        );
+        if (picked != null) {
+          setState(() {
+            if (isStart) {
+              _filterFechaInicio = picked;
+            } else {
+              _filterFechaFin = picked;
+            }
+          });
+        }
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          isDense: true,
+          border: const OutlineInputBorder(),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        ),
+        child: Text(
+          date == null ? 'Seleccionar' : DateFormat('yyyy-MM-dd').format(date),
+        ),
+      ),
+    );
+  }
+
   Widget _emptyState(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Center(
@@ -658,28 +760,36 @@ class _CodigosTabState extends State<_CodigosTab> {
     );
   }
 
+  // --------- MOD: chip con ancho máximo y ellipsis ---------
   Widget _chip(BuildContext context, IconData icon, String label) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: cs.secondaryContainer,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: cs.onSecondaryContainer),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: cs.onSecondaryContainer,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 220), // ajusta si lo ves necesario
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: cs.secondaryContainer,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: cs.onSecondaryContainer),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: TextStyle(
+                  color: cs.onSecondaryContainer,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

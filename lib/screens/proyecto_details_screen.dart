@@ -1025,12 +1025,24 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                         builder: (_) {
                           final m = _calcProyeccion();
                           final entregaFinal = m['entrega'];
-                          bool excedeAnoFin = false;
+
+                          // --- INICIO DE LA LÓGICA DE VALIDACIÓN (ACTUALIZADA) ---
+                          bool excedeFechaFin = false;
                           if (entregaFinal != null &&
                               p.codigoProyectoAnoFin != null) {
-                            excedeAnoFin =
-                                entregaFinal.year > p.codigoProyectoAnoFin!;
+                            final fechaFinProyecto =
+                            DateTime.tryParse(p.codigoProyectoAnoFin!);
+                            if (fechaFinProyecto != null) {
+                              // Compara la fecha completa, ignorando la hora
+                              final entregaSinHora = DateTime(entregaFinal.year,
+                                  entregaFinal.month, entregaFinal.day);
+                              if (entregaSinHora.isAfter(fechaFinProyecto)) {
+                                excedeFechaFin = true;
+                              }
+                            }
                           }
+                          // --- FIN DE LA LÓGICA DE VALIDACIÓN ---
+
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1048,8 +1060,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                               _kv(
                                 'Fecha de entrega',
                                 _fmtDdMmYyFromDate(entregaFinal),
-                                valueColor:
-                                excedeAnoFin ? Colors.red : null,
+                                valueColor: excedeFechaFin ? Colors.red : null,
                               ),
                             ],
                           );
