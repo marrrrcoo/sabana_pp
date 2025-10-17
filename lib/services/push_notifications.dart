@@ -60,7 +60,7 @@ class PushNotifications {
   }) async {
     try {
       final resp = await http.post(
-        Uri.parse('http://10.0.2.2:3000/devices/register'),
+        Uri.parse('http://192.168.1.87:3000/devices/register'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'rpe': rpe, 'token': token, 'platform': Platform.operatingSystem}),
       );

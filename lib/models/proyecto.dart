@@ -19,8 +19,8 @@ class Proyecto {
   final double? importeAnticipo;
   final String? adquisicionServicioObra;
   final String? solicitudPAC;
-  final int? plazoEntregaDias;                 // <-- INT (número de días)
-  final String? fechaEstudioNecesidades;       // deadline notificaciones
+  final int? plazoEntregaDias; // <-- INT (número de días)
+  final String? fechaEstudioNecesidades; // deadline notificaciones
   final String? fechaConclusionEstudio;
   final String? fechaSolicitudICM;
   final String? fechaAperturaTecnica;
@@ -43,17 +43,18 @@ class Proyecto {
   final String? tipoProcedimientoNombre;
 
   // Código SII y Centro (JOIN a codigo_proyectos_sii -> centros)
-  final String? codigoProyectoSii;             // p.ej. MG-E2-24-GT19-92
-  final int? centroId;                         // id en tabla centros
-  final String? centroClave;                   // p.ej. GT19
+  final String? codigoProyectoSii; // p.ej. MG-E2-24-GT19-92
+  final int? centroId; // id en tabla centros
+  final String? centroClave; // p.ej. GT19
+  final int? codigoProyectoAnoFin;
 
   // Dueño del proyecto (quien lo creó)
-  final int? creadorRpe;        // alias: creado_por_rpe (según backend)
+  final int? creadorRpe; // alias: creado_por_rpe (según backend)
   final String? creadoPorNombre;
 
   // NUEVO: ICM
-  final String? fechaIcm;       // columna: fecha_icm
-  final String? numeroIcm;      // columna: numero_icm
+  final String? fechaIcm; // columna: fecha_icm
+  final String? numeroIcm; // columna: numero_icm
 
   Proyecto({
     required this.id,
@@ -90,6 +91,7 @@ class Proyecto {
     this.codigoProyectoSii,
     this.centroId,
     this.centroClave,
+    this.codigoProyectoAnoFin,
     this.creadorRpe,
     this.creadoPorNombre,
     this.tipoContratacion,
@@ -152,19 +154,15 @@ class Proyecto {
     return Proyecto(
       id: _asInt(json['id']),
       nombre: (json['nombre'] ?? '').toString(),
-
       departamentoId: _asInt(json['departamento_id']),
       estadoId: _asInt(json['estado_id']),
       etapaId: _asInt(json['etapa_id']),
-
       entregaSubida: _asBool01(json['entrega_subida']),
-
       presupuestoEstimado: _asDoubleOrNull(json['presupuesto_estimado']),
       monedaId: _asIntOrNull(json['moneda_id']),
       tipoProcedimientoId: _asIntOrNull(json['tipo_procedimiento_id']),
       numeroSolcon: json['numero_solcon']?.toString(),
       codigoProyectoSiiId: _asIntOrNull(json['codigo_proyecto_sii_id']),
-
       importeAnticipo: _asDoubleOrNull(json['importe_anticipo']),
       adquisicionServicioObra: json['adquisicion_servicio_obra']?.toString(),
       solicitudPAC: json['solicitud_pac']?.toString(),
@@ -175,32 +173,25 @@ class Proyecto {
       fechaAperturaTecnica: json['fecha_apertura_tecnica']?.toString(),
       fechaAperturaEconomica: json['fecha_apertura_economica']?.toString(),
       fechaFallo: json['fecha_fallo']?.toString(),
-      fechaFormalizacionContrato: json['fecha_formalizacion_contrato']?.toString(),
+      fechaFormalizacionContrato:
+      json['fecha_formalizacion_contrato']?.toString(),
       fechaPago: json['fecha_pago']?.toString(),
       numeroContrato: json['numero_contrato']?.toString(),
       importeAdjudicado: _asDoubleOrNull(json['importe_adjudicado']),
       anticipoOtorgado: _asDoubleOrNull(json['anticipo_otorgado']),
       observaciones: json['observaciones']?.toString(),
-
       departamento: json['departamento']?.toString(),
       estado: json['estado']?.toString(),
       etapa: json['etapa']?.toString(),
-
       tipoProcedimientoNombre: json['tipo_procedimiento_nombre']?.toString(),
-
-      // Nuevos campos traídos del JOIN
       codigoProyectoSii: json['codigo_proyecto_sii']?.toString(),
       centroId: _asIntOrNull(json['centro_id']),
       centroClave: json['centro_clave']?.toString(),
-
-      // alias para mayor compatibilidad con backend
+      codigoProyectoAnoFin: _asIntOrNull(json['ano_fin']),
       creadorRpe: _asIntOrNull(json['creador_rpe'] ?? json['creado_por_rpe']),
       creadoPorNombre: json['creado_por_nombre']?.toString() ??
           json['creador_nombre']?.toString(),
-
       tipoContratacion: json['tipo_contratacion']?.toString(),
-
-      // <-- CORRECCIONES (sin helper inexistente)
       fechaIcm: json['fecha_icm']?.toString(),
       numeroIcm: json['numero_icm']?.toString(),
     );

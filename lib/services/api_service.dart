@@ -6,7 +6,7 @@ import '../models/departamento.dart';
 import '../models/puesto.dart';
 
 class ApiService {
-  final String baseUrl = 'http://10.0.2.2:3000';
+  final String baseUrl = 'http://192.168.1.87:3000';
 
   /// Contexto del actor autenticado. Úsalo tras login.
   /// Ej.: ApiService(actorRpe: user.rpe, actorRol: user.rol)
