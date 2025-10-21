@@ -1,4 +1,4 @@
-// screens/proyectos_screen.dart  (archivo completo con cambios de paginación/orden + DIAM)
+// screens/proyectos_screen.dart  (archivo completo con botón de aviso por vencimiento en la lista)
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -53,12 +53,18 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
   int _page = 1;
   int _pageSize = 20; // selector 10/20
 
+  // Envíos en curso por proyecto (para deshabilitar botón individual)
+  final Set<int> _sendingIds = <int>{};
+
   bool get isAdmin => widget.rol == 'admin';
   bool get isViewer => widget.rol == 'viewer';
   bool get isDiamUser => widget.departamentoId == DIAM_DEPT_ID;
   bool get canCreate => !isViewer;
   bool get canEditTipoProcedimiento =>
       isAdmin || widget.departamentoId == ABASTECIMIENTOS_ID;
+
+  // Requisito: admins y viewers pueden enviar el correo
+  bool get _canNotifyRole => isAdmin || isViewer;
 
   @override
   void initState() {
@@ -281,6 +287,51 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
   // NUEVO: contador para el chip "Previo" (DIAM)
   int get _countPrevio => _items.where(_isPrevio).length;
 
+  // ====================== Notificación por vencimiento ======================
+  Future<void> _confirmAndSendAviso(Proyecto p) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Enviar aviso por vencimiento'),
+        content: Text(
+          'Se enviará un correo al creador del proyecto:\n\n'
+              '• ${p.nombre}\n'
+              '• Entrega comprometida: ${_fmtDate(p.fechaEstudioNecesidades)}\n\n'
+              '¿Deseas continuar?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCELAR')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ENVIAR')),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+    await _sendAviso(p.id);
+  }
+
+  Future<void> _sendAviso(int proyectoId) async {
+    if (_sendingIds.contains(proyectoId)) return;
+    setState(() => _sendingIds.add(proyectoId));
+    try {
+      await api.notificarVencimiento(proyectoId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Correo de aviso enviado')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al enviar aviso: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _sendingIds.remove(proyectoId));
+      }
+    }
+  }
+  // ==========================================================================
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -409,6 +460,10 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                       : Theme.of(context).colorScheme.surfaceContainerHighest;
 
                   final centroClave = _centroClaveOf(p);
+                  final sending = _sendingIds.contains(p.id);
+
+                  // Mostrar botón sólo si cumple regla y el rol puede notificar
+                  final showNotifyBtn = vencidoSinSubir && _canNotifyRole;
 
                   return Card(
                     elevation: 0,
@@ -452,7 +507,32 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                                   ),
                                 ),
                                 if (vencidoSinSubir)
-                                  Icon(Icons.warning_amber_rounded, color: Colors.amber.shade800),
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 6),
+                                    child: Icon(Icons.warning_amber_rounded, color: Colors.amber.shade800),
+                                  ),
+                                if (showNotifyBtn)
+                                  Tooltip(
+                                    message: 'Enviar aviso por vencimiento',
+                                    child: SizedBox(
+                                      height: 36,
+                                      child: FilledButton.tonalIcon(
+                                        onPressed: sending ? null : () => _confirmAndSendAviso(p),
+                                        icon: sending
+                                            ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                            : const Icon(Icons.email_outlined, size: 18),
+                                        label: const Text('Aviso'),
+                                        style: FilledButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                               ],
                             ),
                             const SizedBox(height: 6),

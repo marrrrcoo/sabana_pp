@@ -4,9 +4,10 @@ import '../models/usuario.dart';
 import '../models/proyecto.dart';
 import '../models/departamento.dart';
 import '../models/puesto.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiService {
-  final String baseUrl = 'http://10.0.2.2:3000';
+  final String baseUrl = dotenv.env['BASE_URL'] ?? 'http://localhost:3000';
 
   /// Contexto del actor autenticado. Úsalo tras login.
   /// Ej.: ApiService(actorRpe: user.rpe, actorRol: user.rol)
@@ -565,6 +566,7 @@ class ApiService {
     String? motivo,
     String? numeroIcm,
     String? fechaIcmISO,
+    double? importePmc,
   }) async {
     final url = Uri.parse('$baseUrl/proyectos/$proyectoId/estado');
     final body = {
@@ -572,21 +574,18 @@ class ApiService {
       if (motivo != null && motivo.trim().isNotEmpty) 'motivo': motivo.trim(),
       if (numeroIcm != null && numeroIcm.trim().isNotEmpty) 'numero_icm': numeroIcm.trim(),
       if (fechaIcmISO != null && fechaIcmISO.trim().isNotEmpty) 'fecha_icm': fechaIcmISO.trim(),
+      if (importePmc != null) 'importe_pmc': importePmc,   // <-- NUEVO
       if (actorRpe != null) 'actor_rpe': actorRpe,
       if (actorRol != null) 'actor_rol': actorRol,
     };
 
-    final res = await http.put(
-      url,
-      headers: _authJsonHeaders,
-      body: jsonEncode(body),
-    );
-
+    final res = await http.put(url, headers: _authJsonHeaders, body: jsonEncode(body));
     if (res.statusCode != 200) {
       throw Exception('Error al actualizar estado: ${res.body}');
     }
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
+
 
   Future<Map<String, dynamic>> actualizarEtapaPorNombre({
     required int proyectoId,
@@ -622,4 +621,20 @@ class ApiService {
     final List<dynamic> data = jsonDecode(res.body);
     return data.cast<Map<String, dynamic>>();
   }
+
+  Future<void> notificarVencimiento(int proyectoId) async {
+    final url = Uri.parse('$baseUrl/proyectos/$proyectoId/notificar_vencimiento');
+    final res = await http.post(
+      url,
+      headers: _authJsonHeaders,
+      body: jsonEncode({
+        if (actorRpe != null) 'actor_rpe': actorRpe,
+        if (actorRol != null) 'actor_rol': actorRol,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo enviar el correo: ${res.body}');
+    }
+  }
+
 }

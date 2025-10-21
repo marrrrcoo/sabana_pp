@@ -7,6 +7,7 @@ import 'screens/login_screen.dart';
 import 'screens/proyecto_details_screen.dart';
 import 'services/api_service.dart';
 import 'models/proyecto.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -34,6 +35,9 @@ Future<void> _handleMessage(RemoteMessage? message) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await dotenv.load(fileName: ".env");
+
   await Firebase.initializeApp();
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);

@@ -53,6 +53,8 @@ class Proyecto {
   // ICM
   final String? fechaIcm;
   final String? numeroIcm;
+  final double? importePmc;
+  final String? fechaEnvioPmc;
 
   Proyecto({
     required this.id,
@@ -95,6 +97,8 @@ class Proyecto {
     this.tipoContratacion,
     this.fechaIcm,
     this.numeroIcm,
+    this.importePmc,
+    this.fechaEnvioPmc,
   });
 
   bool get vencio {
@@ -164,6 +168,8 @@ class Proyecto {
       tipoContratacion: json['tipo_contratacion']?.toString(),
       fechaIcm: json['fecha_icm']?.toString(),
       numeroIcm: json['numero_icm']?.toString(),
+      fechaEnvioPmc: json['fecha_envio_pmc']?.toString(),
+      importePmc: _asDoubleOrNull(json['importe_pmc']),
     );
   }
 }

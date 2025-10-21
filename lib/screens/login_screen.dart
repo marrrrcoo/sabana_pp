@@ -1,9 +1,14 @@
-import 'dart:convert';
+// lib/screens/login_screen.dart
+
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+// Ya no necesitas 'dart:convert' ni 'package:http/http.dart' aquí
+// import 'dart:convert';
+// import 'package:http/http.dart' as http;
 
 import 'dashboard_screen.dart';
-import 'package:flutter_http_demo/services/push_notifications.dart';
+import 'package:flutter_http_demo/services/push_notifications.dart'; // Mantén esta si la usas
+import '../services/api_service.dart'; // <-- Importa ApiService
+import '../models/usuario.dart';      // <-- Importa Usuario si es necesario
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,6 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   bool _loading = false;
   bool _obscure = true;
+  final ApiService _apiService = ApiService(); // <-- Crea una instancia de ApiService
 
   Future<void> _login() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
@@ -29,72 +35,59 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = true);
 
     try {
-      final url = Uri.parse('http://192.168.1.87:3000/login');
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'correo': _emailController.text.trim(),
-          'password': _passwordController.text,
-        }),
+      // --- Cambio Principal: Usa ApiService.login ---
+      final Usuario? usuario = await _apiService.login(
+        _emailController.text.trim(),
+        _passwordController.text,
       );
+      // ---------------------------------------------
 
-      setState(() => _loading = false);
+      // Si el login fue exitoso (usuario no es null)
+      if (usuario != null) {
+        // Registrar/actualizar token FCM (esto ya usa ApiService internamente si lo modificaste)
+        try {
+          await PushNotifications.instance.initForUser(rpe: usuario.rpe);
+        } catch (e) {
+          debugPrint('No se pudo registrar el token FCM: $e');
+          // Opcional: Mostrar mensaje al usuario
+        }
 
-      Map<String, dynamic> data;
-      try {
-        data = jsonDecode(response.body) as Map<String, dynamic>;
-      } catch (_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Respuesta inválida del servidor')),
-        );
-        return;
-      }
+        if (!mounted) return;
 
-      if (data['error'] != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(data['error'].toString())),
-        );
-        return;
-      }
-
-      // Campos esperados del backend
-      final int rpe = (data['rpe'] as num).toInt();
-      final String nombre = (data['nombre'] ?? '').toString();
-      final int departamentoId = (data['departamento_id'] as num).toInt();
-      final String rol = (data['rol'] ?? 'user').toString().toLowerCase();
-
-      // Registrar/actualizar token FCM para este usuario
-      try {
-        await PushNotifications.instance.initForUser(rpe: rpe);
-      } catch (e) {
-        debugPrint('No se pudo registrar el token FCM: $e');
-      }
-
-      if (!mounted) return;
-
-      // Navega al Dashboard (AHORA pasamos `rol`, no `isAdmin`)
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => DashboardScreen(
-            rpe: rpe,
-            nombre: nombre,
-            departamentoId: departamentoId,
-            rol: rol, // <- requerido
+        // Navega al Dashboard
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DashboardScreen(
+              rpe: usuario.rpe,
+              nombre: usuario.nombre,
+              departamentoId: usuario.departamentoId,
+              rol: usuario.rol,
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        // Esto no debería ocurrir si ApiService.login maneja errores con excepciones
+        throw Exception('Usuario no recibido tras intento de login');
+      }
+
     } catch (e) {
+      // Captura errores de ApiService.login o PushNotifications
       setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error de red: $e')),
+        SnackBar(content: Text('Error al iniciar sesión: ${e.toString()}')),
       );
+    } finally {
+      // Asegúrate de que _loading siempre se actualice
+      if (mounted && _loading) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // ... el resto del widget build sigue igual ...
     final theme = Theme.of(context);
 
     return Scaffold(
