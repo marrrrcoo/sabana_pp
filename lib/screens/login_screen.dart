@@ -1,14 +1,12 @@
-// lib/screens/login_screen.dart
-
 import 'package:flutter/material.dart';
-// Ya no necesitas 'dart:convert' ni 'package:http/http.dart' aquí
-// import 'dart:convert';
-// import 'package:http/http.dart' as http;
 
 import 'dashboard_screen.dart';
-import 'package:flutter_http_demo/services/push_notifications.dart'; // Mantén esta si la usas
-import '../services/api_service.dart'; // <-- Importa ApiService
-import '../models/usuario.dart';      // <-- Importa Usuario si es necesario
+import 'package:flutter_http_demo/services/push_notifications.dart';
+import '../services/api_service.dart';
+import '../models/usuario.dart';
+
+// ⬇️ nuevo: guardar sesión local
+import '../services/session_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,7 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   bool _loading = false;
   bool _obscure = true;
-  final ApiService _apiService = ApiService(); // <-- Crea una instancia de ApiService
+  final ApiService _apiService = ApiService();
 
   Future<void> _login() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
@@ -35,26 +33,25 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = true);
 
     try {
-      // --- Cambio Principal: Usa ApiService.login ---
       final Usuario? usuario = await _apiService.login(
         _emailController.text.trim(),
         _passwordController.text,
       );
-      // ---------------------------------------------
 
-      // Si el login fue exitoso (usuario no es null)
       if (usuario != null) {
-        // Registrar/actualizar token FCM (esto ya usa ApiService internamente si lo modificaste)
+        // 1) Guarda sesión local (no persistimos password)
+        await SessionService.saveUser(usuario);
+
+        // 2) Registra/actualiza token FCM
         try {
           await PushNotifications.instance.initForUser(rpe: usuario.rpe);
         } catch (e) {
           debugPrint('No se pudo registrar el token FCM: $e');
-          // Opcional: Mostrar mensaje al usuario
         }
 
         if (!mounted) return;
 
-        // Navega al Dashboard
+        // 3) Navega al Dashboard
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -67,18 +64,16 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
       } else {
-        // Esto no debería ocurrir si ApiService.login maneja errores con excepciones
         throw Exception('Usuario no recibido tras intento de login');
       }
-
     } catch (e) {
-      // Captura errores de ApiService.login o PushNotifications
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al iniciar sesión: ${e.toString()}')),
-      );
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al iniciar sesión: ${e.toString()}')),
+        );
+      }
     } finally {
-      // Asegúrate de que _loading siempre se actualice
       if (mounted && _loading) {
         setState(() => _loading = false);
       }
@@ -87,7 +82,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ... el resto del widget build sigue igual ...
     final theme = Theme.of(context);
 
     return Scaffold(

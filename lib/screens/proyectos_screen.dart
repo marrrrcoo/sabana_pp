@@ -1,4 +1,4 @@
-// screens/proyectos_screen.dart  (archivo completo con botón de aviso por vencimiento en la lista)
+// screens/proyectos_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -8,7 +8,7 @@ import '../services/api_service.dart';
 import 'ProyectoFormScreen.dart';
 import 'proyecto_details_screen.dart';
 
-enum ProjFilter { todos, pendientes, vencidos, completados }
+enum ProjFilter { todos, pendientes, porVencer, vencidos, completados }
 
 const int ABASTECIMIENTOS_ID = 10;
 // TODO: Ajusta este ID al real del departamento DIAM en tu BD
@@ -138,18 +138,39 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
 
   Future<void> _refresh() => _loadFirstPage();
 
+  // ============ Helpers de fechas y estados ============
+  DateTime _asYMD(DateTime d) => DateTime(d.year, d.month, d.day);
+
   bool _isVencido(Proyecto p) {
     final s = p.fechaEstudioNecesidades;
     if (s == null || s.isEmpty) return false;
     final f = DateTime.tryParse(s);
     if (f == null) return false;
-    final hoy = DateTime.now();
-    final fh = DateTime(f.year, f.month, f.day);
-    final hh = DateTime(hoy.year, hoy.month, hoy.day);
-    return hh.isAfter(fh);
+    final hoy = _asYMD(DateTime.now());
+    final fh = _asYMD(f);
+    return hoy.isAfter(fh);
   }
 
   bool _isVencidoSinSubir(Proyecto p) => _isVencido(p) && !p.entregaSubida;
+
+  // Días (enteros) de hoy hasta la fecha de estudio; negativo si ya venció
+  int? _daysUntil(Proyecto p) {
+    final s = p.fechaEstudioNecesidades;
+    if (s == null || s.isEmpty) return null;
+    final f = DateTime.tryParse(s);
+    if (f == null) return null;
+    final hoy = _asYMD(DateTime.now());
+    final fh = _asYMD(f);
+    return fh.difference(hoy).inDays;
+  }
+
+  // NUEVO: regla "Por vencer" (0 a 3 días, no entregado y no vencido)
+  bool _isPorVencer(Proyecto p) {
+    if (p.entregaSubida) return false;
+    final d = _daysUntil(p);
+    if (d == null) return false;
+    return d >= 0 && d <= 3;
+  }
 
   // NUEVO: helper para leer fecha_icm (acepta camel o snake case)
   String? _fechaIcmOf(Proyecto p) {
@@ -219,8 +240,8 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
     if (iso == null || iso.isEmpty) return 500000000; // sin fecha: cerca del final (pero antes de completos)
     final dt = DateTime.tryParse(iso);
     if (dt == null) return 500000000;
-    final days = dt.difference(DateTime.now()).inDays; // negativo = vencido
-    // más pequeño => antes (vencidos con valor muy negativo saldrán primero, luego próximos a vencer)
+    final days = _asYMD(dt).difference(_asYMD(DateTime.now())).inDays; // negativo = vencido
+    // más pequeño => antes (vencidos muy negativos primero, luego próximos a vencer)
     return days;
   }
 
@@ -243,7 +264,7 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
 
     // chips globales:
     // - si es DIAM: solo usamos el chip "Previo" (fecha_icm NULL)
-    // - si NO es DIAM: usamos tus 4 chips normales
+    // - si NO es DIAM: usamos chips normales + "Por vencer"
     if (isDiamUser) {
       if (_filterPrevio) {
         list = list.where(_isPrevio);
@@ -254,6 +275,9 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
           break;
         case ProjFilter.pendientes:
           list = list.where((p) => !p.entregaSubida && !_isVencido(p));
+          break;
+        case ProjFilter.porVencer:
+          list = list.where(_isPorVencer);
           break;
         case ProjFilter.vencidos:
           list = list.where(_isVencidoSinSubir);
@@ -281,6 +305,7 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
   }
 
   int get _countPend => _items.where((p) => !p.entregaSubida && !_isVencido(p)).length;
+  int get _countPorVenc => _items.where(_isPorVencer).length; // NUEVO
   int get _countVenc => _items.where(_isVencidoSinSubir).length;
   int get _countComp => _items.where((p) => p.entregaSubida).length;
 
@@ -371,7 +396,8 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                     Expanded(
                       child: TextField(
                         decoration: InputDecoration(
-                          hintText: 'Buscar por nombre, depto, procedimiento, estado, centro o creador…',
+                          hintText:
+                          'Buscar por nombre, depto, procedimiento, estado, centro o creador…',
                           prefixIcon: const Icon(Icons.search),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
@@ -413,6 +439,7 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                     ] else ...[
                       _chip('Todos', _items.length, ProjFilter.todos),
                       _chip('Pendientes', _countPend, ProjFilter.pendientes),
+                      _chip('Por vencer', _countPorVenc, ProjFilter.porVencer), // NUEVO
                       _chip('Vencidos', _countVenc, ProjFilter.vencidos,
                           highlight: cs.errorContainer, onHighlight: cs.onErrorContainer),
                       _chip('Completados', _countComp, ProjFilter.completados),
@@ -554,7 +581,8 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                                 if (isDiamUser)
                                   _pill(
                                     icon: Icons.event_rounded,
-                                    label: 'ICM: ${_fechaIcmOf(p) == null || _fechaIcmOf(p)!.isEmpty ? "no fecha ICM" : _fmtDate(_fechaIcmOf(p))}',
+                                    label:
+                                    'ICM: ${_fechaIcmOf(p) == null || _fechaIcmOf(p)!.isEmpty ? "no fecha ICM" : _fmtDate(_fechaIcmOf(p))}',
                                     context: context,
                                   )
                                 else
