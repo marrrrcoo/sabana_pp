@@ -1118,9 +1118,11 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
             ),
 
             // Aviso por vencimiento (si aplica)
+            // Aviso por vencimiento (si aplica)
             if (_fechaEstudioNecesidades != null &&
                 DateTime.tryParse(_fechaEstudioNecesidades!) != null &&
-                DateTime.now().isAfter(DateTime.parse(_fechaEstudioNecesidades!)))
+                DateTime.now().isAfter(DateTime.parse(_fechaEstudioNecesidades!)) &&
+                _estadoIdActual == 1) // <-- AÑADIDO: No mostrar si es estado inicial
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Container(
@@ -1191,25 +1193,47 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
           final idx = _orderedStates.indexOf(eid);
           final checked = (idx != -1 && currIdx != -1) ? idx <= currIdx : eid <= curr;
 
-          // Habilitar interacción SOLO si:
-          // - puede editar
-          // - no es viewer
-          // - y el grupo le corresponde (enabledForAdvance) o es admin (ya viene incluido arriba)
           final canTouch = widget.canEdit && !isViewer && enabledForAdvance;
+
+          // Identifica el rank (posición) del estado actual y del que se hizo clic
+          final currRank = _rank(_estadoIdActual ?? 1);
+          final clickRank = _rank(eid);
 
           Future<void> onChange(bool? v) async {
             if (!canTouch) return;
-            final val = v ?? false;
+            final val = v ?? false; // val=true si se marcó, val=false si se desmarcó
 
             if (val) {
-              // AVANZAR hasta 'eid'
-              await _updateEstado(eid);
+              // ----- LÓGICA DE AVANCE -----
+              // Solo se puede marcar el checkbox INMEDIATAMENTE SIGUIENTE al actual.
+              if (clickRank == currRank + 1) {
+                await _updateEstado(eid);
+              } else if (clickRank > currRank) {
+                // Si se hace clic en un estado futuro (ej. saltar de 2 a 4)
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Debe completar los estados en orden')),
+                );
+              }
+              // Si se hace clic en uno ya marcado, no se hace nada (val=true)
+
             } else {
-              // RETROCEDER al anterior de la secuencia global
-              final all = _orderedStates;
-              final pos = all.indexOf(eid);
-              final target = (pos > 0) ? all[pos - 1] : 1; // si desmarcan el primero, vuelve a 00
-              await _updateEstado(target);
+              // ----- LÓGICA DE RETROCESO -----
+              // Solo se puede desmarcar el checkbox ACTUAL (el último activo).
+              if (clickRank == currRank) {
+                // Retroceder al estado anterior en la secuencia
+                final targetRank = currRank - 1;
+
+                // Si desmarcamos el primer item (rank 0, ej. estado 2), volvemos al estado base '1'
+                final targetId = (targetRank >= 0) ? _orderedStates[targetRank] : 1;
+                await _updateEstado(targetId);
+              } else if (clickRank < currRank) {
+                // Si se hace clic en un estado anterior (ej. desmarcar 2 cuando estamos en 4)
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Solo puede desmarcar el último estado activo')),
+                );
+              }
             }
           }
 

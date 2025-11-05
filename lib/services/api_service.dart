@@ -191,7 +191,8 @@ class ApiService {
       'limit': '$limit',
       'offset': '$off',
     });
-    final res = await http.get(uri, headers: _jsonHeaders);
+    //               AQUÍ ESTÁ EL CAMBIO 👇
+    final res = await http.get(uri, headers: _authJsonHeaders);
     if (res.statusCode != 200) {
       throw Exception('Error al cargar proyectos (paginado): ${res.body}');
     }
