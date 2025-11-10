@@ -47,7 +47,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     return '—';
   }
 
-  // Helpers “Aún no registrado”
+  // Helpers "Aún no registrado"
   String _fmtDdMmYyOrPend(String? iso) {
     if (iso == null || iso.isEmpty) return 'Aún no registrado';
     final dt = DateTime.tryParse(iso);
@@ -80,10 +80,10 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
   int? _estadoIdActual; // id real de estados_proyectos (1..N)
   Map<int, String> _nombresEstados = {}; // id -> nombre
 
-  // AT y DIAM sets según presupuesto
+  // AT y DIAM sets según presupuesto - INCLUYENDO ESTADO 9
   bool get presupuestoAlto => (_p.presupuestoEstimado ?? 0) > 15000000;
   List<int> get _techStates => const [2, 3, 4];
-  List<int> get _diamStates => presupuestoAlto ? const [7, 8] : const [5, 6];
+  List<int> get _diamStates => presupuestoAlto ? const [7, 8, 9] : const [5, 6, 9]; // <-- INCLUIR ESTADO 9
   List<int> get _orderedStates => [..._techStates, ..._diamStates];
 
   // Roles
@@ -163,6 +163,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     }
   }
 
+  // ✅ FUNCIÓN ACTUALIZADA: Manejo completo de estados
   Future<void> _updateEstado(int targetId) async {
     if (_estadoIdActual == null) return;
     if (isViewer) return;
@@ -177,8 +178,10 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     if (!retroceso && !isAdmin) {
       final tryingTech = _isInTech(targetId);
       final tryingDiam = _isInDiam(targetId);
+      final tryingEstado9 = targetId == 9;
       final canAdvance =
-          (isAreaTecnicaUser && tryingTech) || (isDiamUser && tryingDiam);
+          (isAreaTecnicaUser && tryingTech) ||
+              (isDiamUser && (tryingDiam || tryingEstado9));
       if (!canAdvance) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -192,6 +195,15 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     String? numeroIcm;
     String? fechaIcmISO;
     double? importePmc;
+    String? atFechaSolicitudIcmISO;
+    String? atOficioSolicitudIcm;
+
+    // ✅ NUEVOS CAMPOS para estado 9
+    int? plazoEntregaReal;
+    String? vigenciaIcmISO;
+
+    // ✅ Campo de observaciones para estados 6 y 8
+    String? observaciones;
 
     if (retroceso) {
       motivo = await _pedirMotivo();
@@ -205,7 +217,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     } else {
       // AVANCE: reglas precisas
       final firstDiam = _diamStates.first; // 5 ó 7 => ICM
-      final secondDiam = _diamStates.last; // 6 ó 8 => PMC
+      final secondDiam = _diamStates[1];   // 6 ó 8 => Segundo estado DIAM
 
       // 5 o 7: ICM
       final toICM = targetId == firstDiam;
@@ -216,12 +228,31 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         fechaIcmISO = icm['fechaISO'] as String;
       }
 
-      // 6 o 8: PMC
-      final toPMC = targetId == secondDiam;
-      if ((isDiamUser || isAdmin) && toPMC) {
-        final pmc = await _pedirImportePMC();
-        if (pmc == null) return;
-        importePmc = pmc;
+      // ✅ NUEVO: Estados 6 y 8 - Solo observaciones
+      final toSecondDiam = targetId == secondDiam;
+      if ((isDiamUser || isAdmin) && toSecondDiam) {
+        final obs = await _pedirObservacionesDIAM();
+        if (obs == null) return; // canceló
+        observaciones = obs;
+      }
+
+      // ✅ NUEVO: Estado 9 (07bis) - PMC, plazo y vigencia
+      final toEstado9 = targetId == 9;
+      if ((isDiamUser || isAdmin) && toEstado9) {
+        final datosEstado9 = await _pedirDatosEstado9();
+        if (datosEstado9 == null) return; // canceló
+        importePmc = datosEstado9['importePmc'] as double;
+        plazoEntregaReal = datosEstado9['plazoEntregaReal'] as int;
+        vigenciaIcmISO = datosEstado9['vigenciaIcmISO'] as String;
+      }
+
+      // Estado 4: Elaboración de documentos para ICM
+      final toEstado4 = targetId == 4;
+      if ((isAreaTecnicaUser || isAdmin) && toEstado4) {
+        final datosSolicitud = await _pedirDatosSolicitudICM();
+        if (datosSolicitud == null) return; // canceló
+        atFechaSolicitudIcmISO = datosSolicitud['fechaISO'] as String;
+        atOficioSolicitudIcm = datosSolicitud['oficio'] as String;
       }
     }
 
@@ -232,8 +263,13 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         motivo: motivo,
         numeroIcm: numeroIcm,
         fechaIcmISO: fechaIcmISO,
-        // Asegúrate de que ApiService lo envíe como 'importe_pmc'
         importePmc: importePmc,
+        atFechaSolicitudIcmISO: atFechaSolicitudIcmISO,
+        atOficioSolicitudIcm: atOficioSolicitudIcm,
+        // ✅ NUEVOS CAMPOS
+        plazoEntregaReal: plazoEntregaReal,
+        vigenciaIcmISO: vigenciaIcmISO,
+        observaciones: observaciones,
       );
 
       setState(() {
@@ -242,7 +278,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         _etapaNombre = (resp['etapa_nombre'] ?? _etapaNombre)?.toString();
       });
 
-      // Refrescar objeto del proyecto para ver ICM/PMC actualizados
+      // Refrescar objeto del proyecto para ver datos actualizados
       await _refreshProyecto();
 
       if (!mounted) return;
@@ -255,6 +291,253 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Error al actualizar estado: $e')));
     }
+  }
+
+  // ✅ NUEVA FUNCIÓN: Pedir observaciones para estados 6 y 8
+  Future<String?> _pedirObservacionesDIAM() async {
+    final ctrl = TextEditingController();
+    String? err;
+
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setS) {
+          return AlertDialog(
+            title: const Text('Observaciones obligatorias'),
+            content: TextField(
+              controller: ctrl,
+              maxLines: 4,
+              decoration: InputDecoration(
+                labelText: 'Observaciones',
+                hintText: 'Ingresa las observaciones requeridas...',
+                errorText: err,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('CANCELAR'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final texto = ctrl.text.trim();
+                  if (texto.isEmpty) {
+                    setS(() => err = 'Las observaciones son obligatorias');
+                    return;
+                  }
+                  Navigator.pop(ctx, texto);
+                },
+                child: const Text('GUARDAR'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  // ✅ NUEVA FUNCIÓN: Pedir datos para estado 9 (07bis)
+  Future<Map<String, dynamic>?> _pedirDatosEstado9() async {
+    final importeCtrl = TextEditingController();
+    final plazoCtrl = TextEditingController();
+    DateTime? pickedVigencia;
+    String? errImporte;
+    String? errPlazo;
+    String? errVigencia;
+
+    return showDialog<Map<String, dynamic>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setS) {
+          Future<void> pickVigencia() async {
+            final now = DateTime.now();
+            final d = await showDatePicker(
+              context: ctx,
+              initialDate: now,
+              firstDate: DateTime(now.year - 1, 1, 1),
+              lastDate: DateTime(now.year + 2, 12, 31),
+              helpText: 'Vigencia de ICM',
+              confirmText: 'SELECCIONAR',
+              cancelText: 'CANCELAR',
+              locale: const Locale('es', 'MX'),
+            );
+            if (d != null) setS(() => pickedVigencia = d);
+          }
+
+          String _fmt(DateTime? d) =>
+              d == null ? 'Selecciona fecha' : DateFormat('dd/MM/yy').format(d);
+
+          return AlertDialog(
+            title: const Text('Datos para ICM Concluida - Pendiente Presupuesto'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: importeCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: 'Importe PMC (MXN)',
+                    hintText: 'Ej. 9827878.50',
+                    errorText: errImporte,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: plazoCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Plazo de entrega real (días)',
+                    hintText: 'Ej. 30',
+                    errorText: errPlazo,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: pickVigencia,
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Vigencia de ICM',
+                      errorText: errVigencia,
+                      border: const OutlineInputBorder(),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(_fmt(pickedVigencia)),
+                        const Icon(Icons.event),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('CANCELAR'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final importeText = importeCtrl.text.replaceAll(',', '').trim();
+                  final importe = double.tryParse(importeText);
+                  final plazo = int.tryParse(plazoCtrl.text.trim());
+
+                  if (importe == null || importe <= 0) {
+                    setS(() => errImporte = 'Ingresa un monto válido (> 0)');
+                    return;
+                  }
+                  if (plazo == null || plazo <= 0) {
+                    setS(() => errPlazo = 'Ingresa un plazo válido (> 0)');
+                    return;
+                  }
+                  if (pickedVigencia == null) {
+                    setS(() => errVigencia = 'Selecciona la vigencia');
+                    return;
+                  }
+
+                  final vigenciaISO = DateFormat('yyyy-MM-dd').format(pickedVigencia!);
+                  Navigator.pop(ctx, {
+                    'importePmc': importe,
+                    'plazoEntregaReal': plazo,
+                    'vigenciaIcmISO': vigenciaISO,
+                  });
+                },
+                child: const Text('GUARDAR'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  Future<Map<String, String>?> _pedirDatosSolicitudICM() async {
+    final oficioCtrl = TextEditingController();
+    DateTime? pickedDate;
+    String? errOficio;
+    String? errDate;
+
+    return showDialog<Map<String, String>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setS) {
+          Future<void> pickDate() async {
+            final now = DateTime.now();
+            final d = await showDatePicker(
+              context: ctx,
+              initialDate: now,
+              firstDate: DateTime(now.year - 1, 1, 1),
+              lastDate: DateTime(now.year + 2, 12, 31),
+              helpText: 'Fecha de solicitud de elaboración de ICM',
+              confirmText: 'SELECCIONAR',
+              cancelText: 'CANCELAR',
+              locale: const Locale('es', 'MX'),
+            );
+            if (d != null) setS(() => pickedDate = d);
+          }
+
+          String _fmt(DateTime? d) =>
+              d == null ? 'Selecciona fecha' : DateFormat('dd/MM/yy').format(d);
+
+          return AlertDialog(
+            title: const Text('Datos de solicitud de elaboración de ICM'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: oficioCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Oficio de solicitud',
+                    hintText: 'Ej. OFICIO-ICM-2024-001',
+                    errorText: errOficio,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: pickDate,
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Fecha de solicitud',
+                      errorText: errDate,
+                      border: const OutlineInputBorder(),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(_fmt(pickedDate)),
+                        const Icon(Icons.event),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('CANCELAR')),
+              FilledButton(
+                onPressed: () {
+                  final oficio = oficioCtrl.text.trim();
+                  if (oficio.isEmpty) {
+                    setS(() => errOficio = 'Ingresa el oficio de solicitud');
+                    return;
+                  }
+                  if (pickedDate == null) {
+                    setS(() => errDate = 'Selecciona la fecha');
+                    return;
+                  }
+                  final iso = DateFormat('yyyy-MM-dd').format(pickedDate!);
+                  Navigator.pop(ctx, {'oficio': oficio, 'fechaISO': iso});
+                },
+                child: const Text('GUARDAR'),
+              ),
+            ],
+          );
+        });
+      },
+    );
   }
 
   Future<String?> _pedirMotivo() async {
@@ -382,44 +665,6 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     );
   }
 
-  Future<double?> _pedirImportePMC() async {
-    final ctrl = TextEditingController();
-    String? err;
-    return showDialog<double>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          title: const Text('Importe PMC'),
-          content: TextField(
-            controller: ctrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: 'Monto (MXN)',
-              hintText: 'Ej. 9827878.50',
-              errorText: err,
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('CANCELAR')),
-            FilledButton(
-              onPressed: () {
-                final t = ctrl.text.replaceAll(',', '').trim();
-                final v = double.tryParse(t);
-                if (v == null || v <= 0) {
-                  setS(() => err = 'Ingresa un monto válido (> 0)');
-                  return;
-                }
-                Navigator.pop(ctx, v);
-              },
-              child: const Text('GUARDAR'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // ====== Utilidades varias existentes ======
   String _fmtDdMmYy(String? iso) {
     if (iso == null || iso.isEmpty) return '—';
@@ -473,7 +718,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                 children: [
                   IconButton(onPressed: () => Navigator.pop(ctx, false), icon: const Icon(Icons.close)),
                   const SizedBox(width: 4),
-                  Text('Editar observaciones',
+                  Text('Editar comentarios',
                       style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
                 ],
               ),
@@ -482,7 +727,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                 controller: ctrl,
                 maxLines: 6,
                 decoration: const InputDecoration(
-                  labelText: 'Observaciones',
+                  labelText: 'Comentarios',
                   alignLabelWithHint: true,
                   border: OutlineInputBorder(),
                 ),
@@ -826,7 +1071,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Observaciones',
+                    Text('Comentarios',
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 8),
                     Text((_observaciones?.isNotEmpty == true) ? _observaciones! : '—',
@@ -844,7 +1089,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                         OutlinedButton.icon(
                             onPressed: _mostrarHistorialObs,
                             icon: const Icon(Icons.history_rounded),
-                            label: const Text('Historial de observaciones')),
+                            label: const Text('Historial de comentarios')),
                       ],
                     ),
                   ],
@@ -934,6 +1179,11 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                     if (_p.numeroSolcon != null) _kv('Núm. SolCon', _p.numeroSolcon!),
                     _kv('Plazo de entrega (días)', (_p.plazoEntregaDias?.toString() ?? '—')),
 
+                    if (_p.atFechaSolicitudIcm != null || _p.atOficioSolicitudIcm != null) ...[
+                      _kv('Fecha solicitud ICM', _fmtDdMmYyOrPend(_p.atFechaSolicitudIcm)),
+                      _kv('Oficio solicitud ICM', _p.atOficioSolicitudIcm ?? 'Aún no registrado'),
+                    ],
+
                     // =================== DATOS DIAM (VISIBLES PARA TODOS) ===================
                     const SizedBox(height: 12),
                     Builder(builder: (_) {
@@ -953,9 +1203,14 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                               (_p.numeroIcm == null || (_p.numeroIcm?.trim().isEmpty ?? true))
                                   ? 'Aún no registrado'
                                   : _p.numeroIcm!),
-                          _kv('Fecha ICM', _fmtDdMmYyOrPend(_p.fechaIcm)),
+                          _kv('Fecha de entrega de ICM', _fmtDdMmYyOrPend(_p.fechaIcm)),
+                          _kv('Fecha ICM concluída', _fmtDdMmYyOrPend(_p.fechaEnvioPmc)),
                           _kv('Importe PMC', _fmtMoneyOrPend(_p.importePmc)),
-                          _kv('Fecha envío PMC', _fmtDdMmYyOrPend(_p.fechaEnvioPmc)),
+                          // ✅ NUEVOS CAMPOS para estado 9
+                          if (_p.plazoEntregaReal != null)
+                            _kv('Plazo entrega real (días)', _p.plazoEntregaReal.toString()),
+                          if (_p.vigenciaIcm != null)
+                            _kv('Vigencia ICM', _fmtDdMmYyOrPend(_p.vigenciaIcm)),
                         ],
                       );
                     }),
@@ -1098,7 +1353,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
 
                     const Divider(height: 22),
 
-                    // Grupo DIAM: (5,6) ó (7,8) según presupuesto
+                    // Grupo DIAM: (5,6) ó (7,8,9) según presupuesto
                     _estadoGroup(
                       title: 'DIAM',
                       estados: _diamStates,
@@ -1117,7 +1372,6 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
               ),
             ),
 
-            // Aviso por vencimiento (si aplica)
             // Aviso por vencimiento (si aplica)
             if (_fechaEstudioNecesidades != null &&
                 DateTime.tryParse(_fechaEstudioNecesidades!) != null &&
@@ -1286,7 +1540,7 @@ class _HistorialSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxH = MediaQuery.of(context).size.height * 0.88; // alto “modal” grande
+    final maxH = MediaQuery.of(context).size.height * 0.88; // alto "modal" grande
 
     return SafeArea(
       child: ClipRRect(
@@ -1305,7 +1559,7 @@ class _HistorialSheet extends StatelessWidget {
                     children: [
                       IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
                       const SizedBox(width: 4),
-                      Text('Historial de observaciones',
+                      Text('Historial de comentarios',
                           style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
                       const Spacer(),
                     ],

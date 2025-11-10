@@ -568,6 +568,12 @@ class ApiService {
     String? numeroIcm,
     String? fechaIcmISO,
     double? importePmc,
+    // ✅ NUEVOS CAMPOS para estado 3
+    String? atFechaSolicitudIcmISO,
+    String? atOficioSolicitudIcm,
+    int? plazoEntregaReal,
+    String? vigenciaIcmISO,
+    String? observaciones,
   }) async {
     final url = Uri.parse('$baseUrl/proyectos/$proyectoId/estado');
     final body = {
@@ -575,7 +581,15 @@ class ApiService {
       if (motivo != null && motivo.trim().isNotEmpty) 'motivo': motivo.trim(),
       if (numeroIcm != null && numeroIcm.trim().isNotEmpty) 'numero_icm': numeroIcm.trim(),
       if (fechaIcmISO != null && fechaIcmISO.trim().isNotEmpty) 'fecha_icm': fechaIcmISO.trim(),
-      if (importePmc != null) 'importe_pmc': importePmc,   // <-- NUEVO
+      if (importePmc != null) 'importe_pmc': importePmc,
+      // ✅ NUEVOS CAMPOS
+      if (atFechaSolicitudIcmISO != null && atFechaSolicitudIcmISO.trim().isNotEmpty)
+        'at_fecha_solicitud_icm': atFechaSolicitudIcmISO.trim(),
+      if (atOficioSolicitudIcm != null && atOficioSolicitudIcm.trim().isNotEmpty)
+        'at_oficio_solicitud_icm': atOficioSolicitudIcm.trim(),
+      if (plazoEntregaReal != null) 'plazo_entrega_real': plazoEntregaReal,
+      if (vigenciaIcmISO != null) 'vigencia_icm': vigenciaIcmISO,
+      if (observaciones != null) 'observaciones': observaciones,
       if (actorRpe != null) 'actor_rpe': actorRpe,
       if (actorRol != null) 'actor_rol': actorRol,
     };

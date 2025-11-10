@@ -56,6 +56,12 @@ class Proyecto {
   final double? importePmc;
   final String? fechaEnvioPmc;
 
+
+  final String? atFechaSolicitudIcm;
+  final String? atOficioSolicitudIcm;
+  final int? plazoEntregaReal;
+  final String? vigenciaIcm;
+
   Proyecto({
     required this.id,
     required this.nombre,
@@ -99,6 +105,11 @@ class Proyecto {
     this.numeroIcm,
     this.importePmc,
     this.fechaEnvioPmc,
+    // ✅ NUEVOS CAMPOS
+    this.atFechaSolicitudIcm,
+    this.atOficioSolicitudIcm,
+    this.plazoEntregaReal,
+    this.vigenciaIcm,
   });
 
   bool get vencio {
@@ -114,6 +125,15 @@ class Proyecto {
 
   String get fechaEstudioNecesidadesDdMmYy {
     final s = fechaEstudioNecesidades;
+    if (s == null || s.isEmpty) return '—';
+    final dt = DateTime.tryParse(s);
+    if (dt == null) return '—';
+    return DateFormat('dd/MM/yy').format(dt);
+  }
+
+  // ✅ NUEVO: Helper para formatear fecha de solicitud ICM
+  String get atFechaSolicitudIcmDdMmYy {
+    final s = atFechaSolicitudIcm;
     if (s == null || s.isEmpty) return '—';
     final dt = DateTime.tryParse(s);
     if (dt == null) return '—';
@@ -170,6 +190,110 @@ class Proyecto {
       numeroIcm: json['numero_icm']?.toString(),
       fechaEnvioPmc: json['fecha_envio_pmc']?.toString(),
       importePmc: _asDoubleOrNull(json['importe_pmc']),
+      // ✅ NUEVOS CAMPOS - mapeo desde la base de datos
+      atFechaSolicitudIcm: json['at_fecha_solicitud_icm']?.toString(),
+      atOficioSolicitudIcm: json['at_oficio_solicitud_icm']?.toString(),
+      plazoEntregaReal: json['plazo_entrega_real'] != null ? int.tryParse(json['plazo_entrega_real'].toString()) : null,
+      vigenciaIcm: json['vigencia_icm'],
+    );
+  }
+
+  // ✅ NUEVO: Método para crear una copia con campos actualizados (útil para updates)
+  Proyecto copyWith({
+    int? id,
+    String? nombre,
+    int? departamentoId,
+    int? estadoId,
+    int? etapaId,
+    bool? entregaSubida,
+    int? monedaId,
+    int? tipoProcedimientoId,
+    int? codigoProyectoSiiId,
+    double? presupuestoEstimado,
+    String? numeroSolcon,
+    double? importeAnticipo,
+    String? adquisicionServicioObra,
+    String? solicitudPAC,
+    int? plazoEntregaDias,
+    String? fechaEstudioNecesidades,
+    String? fechaConclusionEstudio,
+    String? fechaSolicitudICM,
+    String? fechaAperturaTecnica,
+    String? fechaAperturaEconomica,
+    String? fechaFallo,
+    String? fechaFormalizacionContrato,
+    String? fechaPago,
+    String? numeroContrato,
+    double? importeAdjudicado,
+    double? anticipoOtorgado,
+    String? observaciones,
+    String? departamento,
+    String? estado,
+    String? etapa,
+    String? tipoProcedimientoNombre,
+    String? codigoProyectoSii,
+    int? centroId,
+    String? centroClave,
+    String? codigoProyectoAnoFin,
+    int? creadorRpe,
+    String? creadoPorNombre,
+    String? tipoContratacion,
+    String? fechaIcm,
+    String? numeroIcm,
+    double? importePmc,
+    String? fechaEnvioPmc,
+    String? atFechaSolicitudIcm,
+    String? atOficioSolicitudIcm,
+    int? plazoEntregaReal,
+    String? vigenciaIcm,
+  }) {
+    return Proyecto(
+      id: id ?? this.id,
+      nombre: nombre ?? this.nombre,
+      departamentoId: departamentoId ?? this.departamentoId,
+      estadoId: estadoId ?? this.estadoId,
+      etapaId: etapaId ?? this.etapaId,
+      entregaSubida: entregaSubida ?? this.entregaSubida,
+      monedaId: monedaId ?? this.monedaId,
+      tipoProcedimientoId: tipoProcedimientoId ?? this.tipoProcedimientoId,
+      codigoProyectoSiiId: codigoProyectoSiiId ?? this.codigoProyectoSiiId,
+      presupuestoEstimado: presupuestoEstimado ?? this.presupuestoEstimado,
+      numeroSolcon: numeroSolcon ?? this.numeroSolcon,
+      importeAnticipo: importeAnticipo ?? this.importeAnticipo,
+      adquisicionServicioObra: adquisicionServicioObra ?? this.adquisicionServicioObra,
+      solicitudPAC: solicitudPAC ?? this.solicitudPAC,
+      plazoEntregaDias: plazoEntregaDias ?? this.plazoEntregaDias,
+      fechaEstudioNecesidades: fechaEstudioNecesidades ?? this.fechaEstudioNecesidades,
+      fechaConclusionEstudio: fechaConclusionEstudio ?? this.fechaConclusionEstudio,
+      fechaSolicitudICM: fechaSolicitudICM ?? this.fechaSolicitudICM,
+      fechaAperturaTecnica: fechaAperturaTecnica ?? this.fechaAperturaTecnica,
+      fechaAperturaEconomica: fechaAperturaEconomica ?? this.fechaAperturaEconomica,
+      fechaFallo: fechaFallo ?? this.fechaFallo,
+      fechaFormalizacionContrato: fechaFormalizacionContrato ?? this.fechaFormalizacionContrato,
+      fechaPago: fechaPago ?? this.fechaPago,
+      numeroContrato: numeroContrato ?? this.numeroContrato,
+      importeAdjudicado: importeAdjudicado ?? this.importeAdjudicado,
+      anticipoOtorgado: anticipoOtorgado ?? this.anticipoOtorgado,
+      observaciones: observaciones ?? this.observaciones,
+      departamento: departamento ?? this.departamento,
+      estado: estado ?? this.estado,
+      etapa: etapa ?? this.etapa,
+      tipoProcedimientoNombre: tipoProcedimientoNombre ?? this.tipoProcedimientoNombre,
+      codigoProyectoSii: codigoProyectoSii ?? this.codigoProyectoSii,
+      centroId: centroId ?? this.centroId,
+      centroClave: centroClave ?? this.centroClave,
+      codigoProyectoAnoFin: codigoProyectoAnoFin ?? this.codigoProyectoAnoFin,
+      creadorRpe: creadorRpe ?? this.creadorRpe,
+      creadoPorNombre: creadoPorNombre ?? this.creadoPorNombre,
+      tipoContratacion: tipoContratacion ?? this.tipoContratacion,
+      fechaIcm: fechaIcm ?? this.fechaIcm,
+      numeroIcm: numeroIcm ?? this.numeroIcm,
+      importePmc: importePmc ?? this.importePmc,
+      fechaEnvioPmc: fechaEnvioPmc ?? this.fechaEnvioPmc,
+      atFechaSolicitudIcm: atFechaSolicitudIcm ?? this.atFechaSolicitudIcm,
+      atOficioSolicitudIcm: atOficioSolicitudIcm ?? this.atOficioSolicitudIcm,
+      plazoEntregaReal: plazoEntregaReal ?? this.plazoEntregaReal,
+      vigenciaIcm: vigenciaIcm ?? this.vigenciaIcm,
     );
   }
 }
