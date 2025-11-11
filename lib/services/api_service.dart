@@ -652,4 +652,42 @@ class ApiService {
     }
   }
 
+  Future<dynamic> actualizarPlazoEntrega(int proyectoId, int plazoDias) async {
+    final url = Uri.parse('$baseUrl/proyectos/$proyectoId/plazo_entrega_dias');
+    final response = await http.put(
+      url,
+      headers: _authJsonHeaders, // Usar _authJsonHeaders en lugar de _headers
+      body: jsonEncode({'plazo_entrega_dias': plazoDias}),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al actualizar plazo de entrega: ${response.statusCode}');
+    }
+  }
+
+  Future<dynamic> actualizarCodigoSII(int proyectoId, int codigoSIIId) async {
+    final url = Uri.parse('$baseUrl/proyectos/$proyectoId/codigo_proyecto_sii_id');
+    final response = await http.put(
+      url,
+      headers: _authJsonHeaders,
+      body: jsonEncode({'codigo_proyecto_sii_id': codigoSIIId}),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al actualizar código SII: ${response.statusCode}');
+    }
+  }
+
+  Future<List<dynamic>> catGetCodigosSII() async {
+    final url = Uri.parse('$baseUrl/codigo_proyecto'); // <- CORREGIDO
+    final response = await http.get(url);
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al cargar códigos SII: ${response.statusCode}');
+    }
+  }
+
 }

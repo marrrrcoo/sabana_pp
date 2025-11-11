@@ -14,7 +14,7 @@ class ProyectoDetailsScreen extends StatefulWidget {
   // NUEVO: para distinguir AT / DIAM / Abastecimientos
   final int? actorDepartamentoId;
 
-  // Si el usuario pertenece a Abastecimientos (controla edición del “tipo de procedimiento”)
+  // Si el usuario pertenece a Abastecimientos (controla edición del "tipo de procedimiento")
   final bool canEditTipoProcedimiento;
 
   const ProyectoDetailsScreen({
@@ -451,6 +451,149 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         });
       },
     );
+  }
+
+  // ✅ NUEVA FUNCIÓN: Editar plazo de entrega (solo admin)
+  Future<void> _editarPlazoEntrega() async {
+    final ctrl = TextEditingController(text: _p.plazoEntregaDias?.toString() ?? '');
+    String? error;
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setStateDialog) {
+          return AlertDialog(
+            title: const Text('Editar plazo de entrega'),
+            content: TextField(
+              controller: ctrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Plazo de entrega (días)',
+                hintText: 'Ej. 30',
+                errorText: error,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('CANCELAR'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final text = ctrl.text.trim();
+                  if (text.isEmpty) {
+                    setStateDialog(() => error = 'Ingresa el plazo de entrega');
+                    return;
+                  }
+                  final plazo = int.tryParse(text);
+                  if (plazo == null || plazo <= 0) {
+                    setStateDialog(() => error = 'Ingresa un número válido mayor a 0');
+                    return;
+                  }
+                  Navigator.pop(ctx, true);
+                },
+                child: const Text('GUARDAR'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+
+    if (result == true) {
+      try {
+        final nuevoPlazo = int.parse(ctrl.text.trim());
+        await _api.actualizarPlazoEntrega(_p.id, nuevoPlazo);
+        setState(() {
+          _p = _p.copyWith(plazoEntregaDias: nuevoPlazo);
+        });
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Plazo de entrega actualizado')),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al actualizar: $e')),
+        );
+      }
+    }
+  }
+
+  // NUEVA FUNCIÓN: Editar código SII (solo admin)
+  Future<void> _editarCodigoSII() async {
+    List<dynamic> codigosSII = [];
+    try {
+      codigosSII = await _api.catGetCodigosSII();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error cargando códigos SII: $e')),
+      );
+      return;
+    }
+
+    int? selectedCodigoId = _p.codigoProyectoSiiId;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Seleccionar código SII'),
+          content: DropdownButtonFormField<int>(
+            value: selectedCodigoId,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Código SII',
+              border: OutlineInputBorder(),
+            ),
+            items: codigosSII.map<DropdownMenuItem<int>>((codigo) {
+              final centroText = codigo['centro_clave'] != null
+                  ? ' - Centro: ${codigo['centro_clave']}'
+                  : '';
+              return DropdownMenuItem<int>(
+                value: codigo['id'] as int,
+                child: Text(
+                  '${codigo['codigo_proyecto_sii']}$centroText',
+                  style: const TextStyle(fontSize: 14),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              selectedCodigoId = value;
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('CANCELAR'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, selectedCodigoId),
+              child: const Text('GUARDAR'),
+            ),
+          ],
+        );
+      },
+    ).then((newCodigoId) async {
+      if (newCodigoId != null && newCodigoId is int) {
+        try {
+          await _api.actualizarCodigoSII(_p.id, newCodigoId);
+          await _refreshProyecto();
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Código SII actualizado')),
+          );
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al actualizar: $e')),
+          );
+        }
+      }
+    });
   }
 
   Future<Map<String, String>?> _pedirDatosSolicitudICM() async {
@@ -1116,12 +1259,43 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                     _kv('Creado por', _creadoPor(_p)),
                     _kv('Etapa', _etapaNombre ?? '—'),
                     _kv('Estado', _estadoNombre ?? '—'),
-                    if ((_p as dynamic).codigoProyectoSii != null)
-                      _kv('Código SII', (_p as dynamic).codigoProyectoSii ?? '—'),
+
+                    // ✅ Código SII - EDITABLE POR ADMIN
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                              width: 180,
+                              child: Text('Código SII',
+                                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))),
+                          const SizedBox(width: 8),
+                          Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text((_p as dynamic).codigoProyectoSii ?? '—'),
+                                  if ((_p as dynamic).centroClave != null)
+                                    Text(
+                                      'Centro: ${(_p as dynamic).centroClave}',
+                                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                                    ),
+                                ],
+                              )),
+                          if (isAdmin) // Solo admin puede editar
+                            IconButton(
+                                tooltip: 'Editar código SII',
+                                icon: const Icon(Icons.edit_rounded),
+                                onPressed: _editarCodigoSII),
+                        ],
+                      ),
+                    ),
+
                     if ((_p as dynamic).centroClave != null)
                       _kv('Centro', (_p as dynamic).centroClave ?? '—'),
 
-                    // Tipo de procedimiento (editable)
+                    // Tipo de procedimiento (editable) - AHORA TAMBIÉN POR ADMIN
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       child: Row(
@@ -1135,7 +1309,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                           Expanded(
                               child: Text(_tipoProcNombre ?? '—',
                                   maxLines: 2, overflow: TextOverflow.ellipsis)),
-                          if (widget.canEditTipoProcedimiento)
+                          if (widget.canEditTipoProcedimiento || isAdmin) // ✅ Admin también puede editar
                             IconButton(
                                 tooltip: 'Editar tipo de procedimiento',
                                 icon: const Icon(Icons.edit_rounded),
@@ -1177,7 +1351,29 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                     ),
 
                     if (_p.numeroSolcon != null) _kv('Núm. SolCon', _p.numeroSolcon!),
-                    _kv('Plazo de entrega (días)', (_p.plazoEntregaDias?.toString() ?? '—')),
+
+                    // ✅ Plazo de entrega - EDITABLE POR ADMIN
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                              width: 180,
+                              child: Text('Plazo de entrega (días)',
+                                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))),
+                          const SizedBox(width: 8),
+                          Expanded(
+                              child: Text((_p.plazoEntregaDias?.toString() ?? '—'),
+                                  maxLines: 1, overflow: TextOverflow.ellipsis)),
+                          if (isAdmin) // Solo admin puede editar
+                            IconButton(
+                                tooltip: 'Editar plazo de entrega',
+                                icon: const Icon(Icons.edit_rounded),
+                                onPressed: _editarPlazoEntrega),
+                        ],
+                      ),
+                    ),
 
                     if (_p.atFechaSolicitudIcm != null || _p.atOficioSolicitudIcm != null) ...[
                       _kv('Fecha solicitud ICM', _fmtDdMmYyOrPend(_p.atFechaSolicitudIcm)),
@@ -1203,9 +1399,9 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                               (_p.numeroIcm == null || (_p.numeroIcm?.trim().isEmpty ?? true))
                                   ? 'Aún no registrado'
                                   : _p.numeroIcm!),
-                          _kv('Fecha de entrega de ICM', _fmtDdMmYyOrPend(_p.fechaIcm)),
-                          _kv('Fecha ICM concluída', _fmtDdMmYyOrPend(_p.fechaEnvioPmc)),
+                          _kv('Fecha ICM', _fmtDdMmYyOrPend(_p.fechaIcm)),
                           _kv('Importe PMC', _fmtMoneyOrPend(_p.importePmc)),
+                          _kv('Fecha envío PMC', _fmtDdMmYyOrPend(_p.fechaEnvioPmc)),
                           // ✅ NUEVOS CAMPOS para estado 9
                           if (_p.plazoEntregaReal != null)
                             _kv('Plazo entrega real (días)', _p.plazoEntregaReal.toString()),
@@ -1784,6 +1980,7 @@ class _HistorialEstadosSheet extends StatelessWidget {
       return iso;
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
