@@ -82,13 +82,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
 
   // AT y DIAM sets según presupuesto - INCLUYENDO ESTADO 9
   bool get presupuestoAlto => (_p.presupuestoEstimado ?? 0) > 15000000;
-  List<int> get _techStates {
-    List<int> base = [2, 3, 4];
-    if (_estadoIdActual != null && _estadoIdActual! >= 9) {
-      base.addAll([10, 11]);
-    }
-    return base;
-  }
+  List<int> get _techStates => const [2, 3, 4];
   List<int> get _diamStates => presupuestoAlto ? const [7, 8, 9] : const [5, 6, 9]; // <-- INCLUIR ESTADO 9
   List<int> get _orderedStates => [..._techStates, ..._diamStates];
 
