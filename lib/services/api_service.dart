@@ -568,7 +568,6 @@ class ApiService {
     String? numeroIcm,
     String? fechaIcmISO,
     double? importePmc,
-    // ✅ NUEVOS CAMPOS para estado 3
     String? atFechaSolicitudIcmISO,
     String? atOficioSolicitudIcm,
     int? plazoEntregaReal,
@@ -582,7 +581,6 @@ class ApiService {
       if (numeroIcm != null && numeroIcm.trim().isNotEmpty) 'numero_icm': numeroIcm.trim(),
       if (fechaIcmISO != null && fechaIcmISO.trim().isNotEmpty) 'fecha_icm': fechaIcmISO.trim(),
       if (importePmc != null) 'importe_pmc': importePmc,
-      // ✅ NUEVOS CAMPOS
       if (atFechaSolicitudIcmISO != null && atFechaSolicitudIcmISO.trim().isNotEmpty)
         'at_fecha_solicitud_icm': atFechaSolicitudIcmISO.trim(),
       if (atOficioSolicitudIcm != null && atOficioSolicitudIcm.trim().isNotEmpty)
@@ -681,7 +679,7 @@ class ApiService {
   }
 
   Future<List<dynamic>> catGetCodigosSII() async {
-    final url = Uri.parse('$baseUrl/codigo_proyecto'); // <- CORREGIDO
+    final url = Uri.parse('$baseUrl/codigo_proyecto');
     final response = await http.get(url);
     if (response.statusCode == 200) {
       return jsonDecode(response.body);

@@ -8,7 +8,7 @@ class SessionService {
 
   static Future<void> saveUser(Usuario u) async {
     final sp = await SharedPreferences.getInstance();
-    // Asegúrate de que Usuario tenga toJson(); si no, arma tu propio Map.
+    // Usuario tenga toJson();
     await sp.setString(_kUserKey, jsonEncode(u.toJson()));
   }
 

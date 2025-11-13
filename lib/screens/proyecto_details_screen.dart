@@ -82,7 +82,13 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
 
   // AT y DIAM sets según presupuesto - INCLUYENDO ESTADO 9
   bool get presupuestoAlto => (_p.presupuestoEstimado ?? 0) > 15000000;
-  List<int> get _techStates => const [2, 3, 4];
+  List<int> get _techStates {
+    List<int> base = [2, 3, 4];
+    if (_estadoIdActual != null && _estadoIdActual! >= 9) {
+      base.addAll([10, 11]);
+    }
+    return base;
+  }
   List<int> get _diamStates => presupuestoAlto ? const [7, 8, 9] : const [5, 6, 9]; // <-- INCLUIR ESTADO 9
   List<int> get _orderedStates => [..._techStates, ..._diamStates];
 
@@ -163,7 +169,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     }
   }
 
-  // ✅ FUNCIÓN ACTUALIZADA: Manejo completo de estados
+
+// Permisos para DIAM en estado 9
   Future<void> _updateEstado(int targetId) async {
     if (_estadoIdActual == null) return;
     if (isViewer) return;
@@ -198,11 +205,11 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     String? atFechaSolicitudIcmISO;
     String? atOficioSolicitudIcm;
 
-    // ✅ NUEVOS CAMPOS para estado 9
+    // CAMPOS para estado 9
     int? plazoEntregaReal;
     String? vigenciaIcmISO;
 
-    // ✅ Campo de observaciones para estados 6 y 8
+    // Campo de observaciones para estados 6 y 8
     String? observaciones;
 
     if (retroceso) {
@@ -228,7 +235,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         fechaIcmISO = icm['fechaISO'] as String;
       }
 
-      // ✅ NUEVO: Estados 6 y 8 - Solo observaciones
+      // Estados 6 y 8 - Solo observaciones
       final toSecondDiam = targetId == secondDiam;
       if ((isDiamUser || isAdmin) && toSecondDiam) {
         final obs = await _pedirObservacionesDIAM();
@@ -236,7 +243,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         observaciones = obs;
       }
 
-      // ✅ NUEVO: Estado 9 (07bis) - PMC, plazo y vigencia
+      // Estado 9 (07bis) - PMC, plazo y vigencia
       final toEstado9 = targetId == 9;
       if ((isDiamUser || isAdmin) && toEstado9) {
         final datosEstado9 = await _pedirDatosEstado9();
@@ -266,7 +273,6 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         importePmc: importePmc,
         atFechaSolicitudIcmISO: atFechaSolicitudIcmISO,
         atOficioSolicitudIcm: atOficioSolicitudIcm,
-        // ✅ NUEVOS CAMPOS
         plazoEntregaReal: plazoEntregaReal,
         vigenciaIcmISO: vigenciaIcmISO,
         observaciones: observaciones,
@@ -277,6 +283,43 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         _estadoNombre = (resp['estado_nombre'] ?? _estadoNombre)?.toString();
         _etapaNombre = (resp['etapa_nombre'] ?? _etapaNombre)?.toString();
       });
+
+      //CAMBIOS AUTOMÁTICOS PARA ESTADO 4 Y 9 - CON PERMISOS DIAM
+      if (!retroceso) {
+        // Si el estado objetivo es 4, cambiar a etapa DIAM y marcar entrega_subida
+        if (targetId == 4 && (isAreaTecnicaUser || isAdmin)) {
+          await _api.actualizarEtapaPorNombre(proyectoId: _p.id, nombre: 'DIAM');
+          await _api.actualizarEntregaSubida(_p.id, true);
+          setState(() {
+            _etapaNombre = 'DIAM';
+            _p = _p.copyWith(entregaSubida: true);
+          });
+        }
+        // Si el estado objetivo es 9, cambiar a etapa Área Técnica (DIAM también puede)
+        else if (targetId == 9 && (isDiamUser || isAdmin)) {
+          await _api.actualizarEtapaPorNombre(proyectoId: _p.id, nombre: 'Área Técnica');
+          setState(() {
+            _etapaNombre = 'Área Técnica';
+          });
+        }
+      } else {
+        // Si estamos retrocediendo DESDE el estado 4, volver a Área Técnica y desmarcar entrega_subida
+        if (curr == 4 && (isAreaTecnicaUser || isAdmin)) {
+          await _api.actualizarEtapaPorNombre(proyectoId: _p.id, nombre: 'Área Técnica');
+          await _api.actualizarEntregaSubida(_p.id, false);
+          setState(() {
+            _etapaNombre = 'Área Técnica';
+            _p = _p.copyWith(entregaSubida: false);
+          });
+        }
+        // Si estamos retrocediendo DESDE el estado 9, volver a DIAM (DIAM también puede)
+        else if (curr == 9 && (isDiamUser || isAdmin)) {
+          await _api.actualizarEtapaPorNombre(proyectoId: _p.id, nombre: 'DIAM');
+          setState(() {
+            _etapaNombre = 'DIAM';
+          });
+        }
+      }
 
       // Refrescar objeto del proyecto para ver datos actualizados
       await _refreshProyecto();
@@ -293,7 +336,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     }
   }
 
-  // ✅ NUEVA FUNCIÓN: Pedir observaciones para estados 6 y 8
+  // Pedir observaciones para estados 6 y 8
   Future<String?> _pedirObservacionesDIAM() async {
     final ctrl = TextEditingController();
     String? err;
@@ -337,7 +380,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     );
   }
 
-  // ✅ NUEVA FUNCIÓN: Pedir datos para estado 9 (07bis)
+  // Pedir datos para estado 9 (07bis)
   Future<Map<String, dynamic>?> _pedirDatosEstado9() async {
     final importeCtrl = TextEditingController();
     final plazoCtrl = TextEditingController();
@@ -453,7 +496,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     );
   }
 
-  // ✅ NUEVA FUNCIÓN: Editar plazo de entrega (solo admin)
+  // Editar plazo de entrega (solo admin)
   Future<void> _editarPlazoEntrega() async {
     final ctrl = TextEditingController(text: _p.plazoEntregaDias?.toString() ?? '');
     String? error;
@@ -1260,7 +1303,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                     _kv('Etapa', _etapaNombre ?? '—'),
                     _kv('Estado', _estadoNombre ?? '—'),
 
-                    // ✅ Código SII - EDITABLE POR ADMIN
+                    // Código SII - EDITABLE POR ADMIN
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       child: Row(
@@ -1309,7 +1352,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                           Expanded(
                               child: Text(_tipoProcNombre ?? '—',
                                   maxLines: 2, overflow: TextOverflow.ellipsis)),
-                          if (widget.canEditTipoProcedimiento || isAdmin) // ✅ Admin también puede editar
+                          if (widget.canEditTipoProcedimiento || isAdmin) //Admin también puede editar
                             IconButton(
                                 tooltip: 'Editar tipo de procedimiento',
                                 icon: const Icon(Icons.edit_rounded),
@@ -1352,7 +1395,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
 
                     if (_p.numeroSolcon != null) _kv('Núm. SolCon', _p.numeroSolcon!),
 
-                    // ✅ Plazo de entrega - EDITABLE POR ADMIN
+                    // Plazo de entrega - EDITABLE POR ADMIN
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       child: Row(
@@ -1402,7 +1445,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                           _kv('Fecha ICM', _fmtDdMmYyOrPend(_p.fechaIcm)),
                           _kv('Importe PMC', _fmtMoneyOrPend(_p.importePmc)),
                           _kv('Fecha envío PMC', _fmtDdMmYyOrPend(_p.fechaEnvioPmc)),
-                          // ✅ NUEVOS CAMPOS para estado 9
+                          // CAMPOS para estado 9
                           if (_p.plazoEntregaReal != null)
                             _kv('Plazo entrega real (días)', _p.plazoEntregaReal.toString()),
                           if (_p.vigenciaIcm != null)

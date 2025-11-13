@@ -59,7 +59,7 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
   bool get isAdmin => widget.rol == 'admin';
   bool get isViewer => widget.rol == 'viewer';
   bool get isDiamUser => widget.departamentoId == DIAM_DEPT_ID;
-  bool get canCreate => !isViewer;
+  bool get canCreate => !isViewer && !isDiamUser;
   bool get canEditTipoProcedimiento =>
       isAdmin || widget.departamentoId == ABASTECIMIENTOS_ID;
 
