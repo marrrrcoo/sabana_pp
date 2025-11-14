@@ -573,6 +573,7 @@ class ApiService {
     int? plazoEntregaReal,
     String? vigenciaIcmISO,
     String? observaciones,
+    String? numeroSolcon,
   }) async {
     final url = Uri.parse('$baseUrl/proyectos/$proyectoId/estado');
     final body = {
@@ -590,6 +591,7 @@ class ApiService {
       if (observaciones != null) 'observaciones': observaciones,
       if (actorRpe != null) 'actor_rpe': actorRpe,
       if (actorRol != null) 'actor_rol': actorRol,
+      if (numeroSolcon != null && numeroSolcon.trim().isNotEmpty) 'numero_solcon': numeroSolcon.trim(),
     };
 
     final res = await http.put(url, headers: _authJsonHeaders, body: jsonEncode(body));

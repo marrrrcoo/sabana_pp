@@ -1,3 +1,5 @@
+// proyecto_details_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/proyecto.dart';
@@ -82,9 +84,12 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
 
   // AT y DIAM sets según presupuesto - INCLUYENDO ESTADO 9
   bool get presupuestoAlto => (_p.presupuestoEstimado ?? 0) > 15000000;
-  List<int> get _techStates => const [2, 3, 4];
+
+  // Modificamos _techStates para que incluya 10 y 11 cuando el estado actual es 9 o superior
+  List<int> get _techStates => [2, 3, 4, 10, 11];
+
   List<int> get _diamStates => presupuestoAlto ? const [7, 8, 9] : const [5, 6, 9]; // <-- INCLUIR ESTADO 9
-  List<int> get _orderedStates => [..._techStates, ..._diamStates];
+  List<int> get _orderedStates => [2, 3, 4, ..._diamStates, 10, 11];
 
   // Roles
   bool get isAdmin => (widget.actorRol == 'admin');
@@ -180,8 +185,10 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
       final tryingTech = _isInTech(targetId);
       final tryingDiam = _isInDiam(targetId);
       final tryingEstado9 = targetId == 9;
+      final tryingEstado10 = targetId == 10;
+      final tryingEstado11 = targetId == 11;
       final canAdvance =
-          (isAreaTecnicaUser && tryingTech) ||
+          (isAreaTecnicaUser && (tryingTech || tryingEstado10 || tryingEstado11)) ||
               (isDiamUser && (tryingDiam || tryingEstado9));
       if (!canAdvance) {
         if (!mounted) return;
@@ -205,6 +212,10 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
 
     // Campo de observaciones para estados 6 y 8
     String? observaciones;
+
+    //  Campo de observaciones y solcon para estado 10
+    String? observacionesEstado10;
+    String? numeroSolcon;
 
     if (retroceso) {
       motivo = await _pedirMotivo();
@@ -255,6 +266,19 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         atFechaSolicitudIcmISO = datosSolicitud['fechaISO'] as String;
         atOficioSolicitudIcm = datosSolicitud['oficio'] as String;
       }
+
+      // ✅ NUEVO: Estado 10 - Observaciones obligatorias solo para áreas técnicas
+      // Estado 10 - Trámite de Solcon en WorkFlow
+      final toEstado10 = targetId == 10;
+      if ((isAreaTecnicaUser || isAdmin) && toEstado10) {
+        final datosEstado10 = await _pedirDatosEstado10();
+        print("DATOS ESTADO 10: $datosEstado10");
+        if (datosEstado10 == null) return; // canceló
+        // Extraemos el número de SolCon y las observaciones
+        numeroSolcon = datosEstado10['numero_solcon'];
+        observacionesEstado10 = datosEstado10['observaciones'];
+        observaciones = observacionesEstado10;
+      }
     }
 
     try {
@@ -270,6 +294,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         plazoEntregaReal: plazoEntregaReal,
         vigenciaIcmISO: vigenciaIcmISO,
         observaciones: observaciones,
+        numeroSolcon: numeroSolcon,
       );
 
       setState(() {
@@ -364,6 +389,131 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                     return;
                   }
                   Navigator.pop(ctx, texto);
+                },
+                child: const Text('GUARDAR'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  // ✅ NUEVA FUNCIÓN: Pedir observaciones obligatorias para estado 10
+  Future<String?> _pedirObservacionesObligatoriasEstado10() async {
+    final ctrl = TextEditingController();
+    String? err;
+
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setS) {
+          return AlertDialog(
+            title: const Text('Observaciones obligatorias - Trámite de Solcon'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Para avanzar al estado "08. Trámite de Solcon en WorkFlow" es necesario registrar observaciones.',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: ctrl,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    labelText: 'Observaciones',
+                    hintText: 'Describe los detalles del trámite de Solcon en WorkFlow...',
+                    errorText: err,
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('CANCELAR'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final texto = ctrl.text.trim();
+                  if (texto.isEmpty) {
+                    setS(() => err = 'Las observaciones son obligatorias para este estado');
+                    return;
+                  }
+                  Navigator.pop(ctx, texto);
+                },
+                child: const Text('CONTINUAR'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  Future<Map<String, String>?> _pedirDatosEstado10() async {
+    final solconCtrl = TextEditingController();
+    final observacionesCtrl = TextEditingController();
+    String? errSolcon;
+    String? errObservaciones;
+
+    return showDialog<Map<String, String>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setS) {
+          return AlertDialog(
+            title: const Text('Datos para Trámite de Solcon en WorkFlow'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: solconCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Número de SolCon',
+                    hintText: 'Ej. SOLCON-2024-001',
+                    errorText: errSolcon,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: observacionesCtrl,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    labelText: 'Observaciones (obligatorias)',
+                    hintText: 'Describe los detalles del trámite de Solcon en WorkFlow...',
+                    errorText: errObservaciones,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('CANCELAR'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final solcon = solconCtrl.text.trim();
+                  final observaciones = observacionesCtrl.text.trim();
+                  if (solcon.isEmpty) {
+                    setS(() => errSolcon = 'Ingresa el número de SolCon');
+                    return;
+                  }
+                  if (observaciones.isEmpty) {
+                    setS(() => errObservaciones = 'Las observaciones son obligatorias');
+                    return;
+                  }
+                  Navigator.pop(ctx, {
+                    'numero_solcon': solcon,
+                    'observaciones': observaciones,
+                  });
                 },
                 child: const Text('GUARDAR'),
               ),
@@ -1576,7 +1726,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 6),
 
-                    // Grupo Áreas Técnicas: 2,3,4
+                    // Grupo Áreas Técnicas: 2,3,4,10,11
                     _estadoGroup(
                       title: 'Áreas Técnicas',
                       estados: _techStates,
