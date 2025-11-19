@@ -86,19 +86,35 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
   bool get presupuestoAlto => (_p.presupuestoEstimado ?? 0) > 15000000;
 
   // Modificamos _techStates para que incluya 10 y 11 cuando el estado actual es 9 o superior
-  List<int> get _techStates => [2, 3, 4, 10, 11];
+  List<int> get _techStates => [2, 3, 4];
 
-  List<int> get _diamStates => presupuestoAlto ? const [7, 8, 9] : const [5, 6, 9]; // <-- INCLUIR ESTADO 9
-  List<int> get _orderedStates => [2, 3, 4, ..._diamStates, 10, 11];
+  List<int> get _diamStates => presupuestoAlto
+      ? const [7, 8, 9]
+      : const [5, 6, 9]; // <-- INCLUIR ESTADO 9
+  List<int> get _solconStates => [10];
+
+  List<int> get _abastecimientosStates => [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
+
+  List<int> get _orderedStates => [
+        ..._techStates,
+        ..._diamStates,
+        ..._solconStates,
+        ..._abastecimientosStates
+      ];
 
   // Roles
   bool get isAdmin => (widget.actorRol == 'admin');
+
   bool get isViewer => (widget.actorRol == 'viewer');
+
   bool get isDiamUser => widget.actorDepartamentoId == DIAM_DEPT_ID;
+
   bool get isAbastUser => widget.actorDepartamentoId == ABASTECIMIENTOS_ID;
+
   bool get isAreaTecnicaUser => !(isDiamUser || isAbastUser) && !isAdmin;
 
   late final ApiService _api;
+  DateTime? _fechaExpEstim;
 
   @override
   void initState() {
@@ -109,6 +125,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     _tipoProcId = _p.tipoProcedimientoId;
     _tipoProcNombre = _p.tipoProcedimientoNombre;
     _fechaEstudioNecesidades = _p.fechaEstudioNecesidades;
+    _fechaExpEstim =
+        _p.fechaExpEstim != null ? DateTime.tryParse(_p.fechaExpEstim!) : null;
 
     _estadoNombre = _p.estado; // del join
     _etapaNombre = _p.etapa; // del join
@@ -133,7 +151,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         final nombreActual = (_p.estado ?? '').toLowerCase().trim();
         if (nombreActual.isNotEmpty) {
           final found = map.entries.firstWhere(
-                (e) => e.value.toLowerCase().trim() == nombreActual,
+            (e) => e.value.toLowerCase().trim() == nombreActual,
             orElse: () => const MapEntry(-1, ''),
           );
           if (found.key != -1) idActual = found.key;
@@ -148,7 +166,9 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
   }
 
   int _rank(int estadoId) => _orderedStates.indexOf(estadoId);
+
   bool _isInTech(int id) => _techStates.contains(id);
+
   bool _isInDiam(int id) => _diamStates.contains(id);
 
   Future<void> _refreshProyecto() async {
@@ -168,6 +188,49 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     }
   }
 
+  // Función para actualizar la fecha de expediente estimado
+  Future<void> _actualizarFechaExpEstim(DateTime? nuevaFecha) async {
+    if (nuevaFecha == null) return;
+
+    try {
+      final iso = DateFormat('yyyy-MM-dd').format(nuevaFecha);
+      await _api.actualizarFechaExpEstim(_p.id, iso);
+      setState(() {
+        _fechaExpEstim = nuevaFecha;
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Fecha de entrega de expediente actualizada')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al actualizar fecha: $e')),
+      );
+    }
+  }
+
+// Función para seleccionar fecha de expediente
+  Future<void> _seleccionarFechaExpEstim() async {
+    DateTime initial =
+        _fechaExpEstim ?? DateTime.now().add(const Duration(days: 30));
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100, 12, 31),
+      helpText: 'Fecha de entrega de expediente (estimado)',
+      confirmText: 'SELECCIONAR',
+      cancelText: 'CANCELAR',
+      locale: const Locale('es', 'MX'),
+    );
+
+    if (picked != null) {
+      await _actualizarFechaExpEstim(picked);
+    }
+  }
 
 // Permisos para DIAM en estado 9
   Future<void> _updateEstado(int targetId) async {
@@ -177,8 +240,9 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     final curr = _estadoIdActual!;
     final currRank = _rank(curr);
     final nextRank = _rank(targetId);
-    final retroceso =
-    (nextRank != -1 && currRank != -1) ? nextRank < currRank : targetId < curr;
+    final retroceso = (nextRank != -1 && currRank != -1)
+        ? nextRank < currRank
+        : targetId < curr;
 
     // permisos UX (backend también valida)
     if (!retroceso && !isAdmin) {
@@ -187,13 +251,16 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
       final tryingEstado9 = targetId == 9;
       final tryingEstado10 = targetId == 10;
       final tryingEstado11 = targetId == 11;
-      final canAdvance =
-          (isAreaTecnicaUser && (tryingTech || tryingEstado10 || tryingEstado11)) ||
-              (isDiamUser && (tryingDiam || tryingEstado9));
+      final tryingAbast = _abastecimientosStates.contains(targetId);
+      final canAdvance = (isAreaTecnicaUser &&
+              (tryingTech || tryingEstado10 || tryingEstado11)) ||
+          (isDiamUser && (tryingDiam || tryingEstado9)) ||
+          (isAbastUser && tryingAbast);
       if (!canAdvance) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No tienes permiso para avanzar a este estado')),
+          const SnackBar(
+              content: Text('No tienes permiso para avanzar a este estado')),
         );
         return;
       }
@@ -216,20 +283,24 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     //  Campo de observaciones y solcon para estado 10
     String? observacionesEstado10;
     String? numeroSolcon;
+    // CAMPOS para estado 14
+    String? fechaPublicacion;
+    String? numeroProcedimientoMSC;
 
     if (retroceso) {
       motivo = await _pedirMotivo();
       if (motivo == null || motivo.trim().isEmpty) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('El motivo es obligatorio para retroceder')),
+          const SnackBar(
+              content: Text('El motivo es obligatorio para retroceder')),
         );
         return;
       }
     } else {
       // AVANCE: reglas precisas
       final firstDiam = _diamStates.first; // 5 ó 7 => ICM
-      final secondDiam = _diamStates[1];   // 6 ó 8 => Segundo estado DIAM
+      final secondDiam = _diamStates[1]; // 6 ó 8 => Segundo estado DIAM
 
       // 5 o 7: ICM
       final toICM = targetId == firstDiam;
@@ -281,6 +352,31 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
       }
     }
 
+// Estado 13 - Comentario obligatorio
+    final toEstado13 = targetId == 13;
+    if ((isAbastUser || isAdmin) && toEstado13) {
+      final obs = await _pedirObservacionesObligatoriasEstado13();
+      if (obs == null) return; // canceló
+      observaciones = obs;
+    }
+
+// Estado 14 - Fecha de publicación y número de procedimiento MSC
+    final toEstado14 = targetId == 14;
+    if ((isAbastUser || isAdmin) && toEstado14) {
+      final datosEstado14 = await _pedirDatosEstado14();
+      if (datosEstado14 == null) return; // canceló
+
+      // Estos datos se enviarán al backend
+      fechaPublicacion = datosEstado14['fecha_publicacion'];
+      numeroProcedimientoMSC = datosEstado14['numero_procedimiento_msc'];
+    }
+
+    // Estado 11 - Entrega de expediente a OP (automático)
+    final toEstado11 = targetId == 11;
+    if ((isAbastUser || isAdmin) && toEstado11) {
+      // No necesita datos adicionales, se guarda automáticamente la fecha
+    }
+
     try {
       final resp = await _api.actualizarEstado(
         proyectoId: _p.id,
@@ -295,6 +391,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         vigenciaIcmISO: vigenciaIcmISO,
         observaciones: observaciones,
         numeroSolcon: numeroSolcon,
+        fechaPublicacion: fechaPublicacion,
+        numeroProcedimientoMSC: numeroProcedimientoMSC,
       );
 
       setState(() {
@@ -307,7 +405,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
       if (!retroceso) {
         // Si el estado objetivo es 4, cambiar a etapa DIAM y marcar entrega_subida
         if (targetId == 4 && (isAreaTecnicaUser || isAdmin)) {
-          await _api.actualizarEtapaPorNombre(proyectoId: _p.id, nombre: 'DIAM');
+          await _api.actualizarEtapaPorNombre(
+              proyectoId: _p.id, nombre: 'DIAM');
           await _api.actualizarEntregaSubida(_p.id, true);
           setState(() {
             _etapaNombre = 'DIAM';
@@ -316,15 +415,23 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         }
         // Si el estado objetivo es 9, cambiar a etapa Área Técnica (DIAM también puede)
         else if (targetId == 9 && (isDiamUser || isAdmin)) {
-          await _api.actualizarEtapaPorNombre(proyectoId: _p.id, nombre: 'Área Técnica');
+          await _api.actualizarEtapaPorNombre(
+              proyectoId: _p.id, nombre: 'Área Técnica');
           setState(() {
             _etapaNombre = 'Área Técnica';
+          });
+        } else if (targetId == 10 && (isAreaTecnicaUser || isAdmin)) {
+          await _api.actualizarEtapaPorNombre(
+              proyectoId: _p.id, nombre: 'Abastecimientos');
+          setState(() {
+            _etapaNombre = 'Abastecimientos';
           });
         }
       } else {
         // Si estamos retrocediendo DESDE el estado 4, volver a Área Técnica y desmarcar entrega_subida
         if (curr == 4 && (isAreaTecnicaUser || isAdmin)) {
-          await _api.actualizarEtapaPorNombre(proyectoId: _p.id, nombre: 'Área Técnica');
+          await _api.actualizarEtapaPorNombre(
+              proyectoId: _p.id, nombre: 'Área Técnica');
           await _api.actualizarEntregaSubida(_p.id, false);
           setState(() {
             _etapaNombre = 'Área Técnica';
@@ -333,25 +440,29 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         }
         // Si estamos retrocediendo DESDE el estado 9, volver a DIAM (DIAM también puede)
         else if (curr == 9 && (isDiamUser || isAdmin)) {
-          await _api.actualizarEtapaPorNombre(proyectoId: _p.id, nombre: 'DIAM');
+          await _api.actualizarEtapaPorNombre(
+              proyectoId: _p.id, nombre: 'DIAM');
           setState(() {
             _etapaNombre = 'DIAM';
           });
         }
       }
 
+
+
       // Refrescar objeto del proyecto para ver datos actualizados
       await _refreshProyecto();
 
       if (!mounted) return;
-      final shown = _estadoNombre ?? _nombresEstados[targetId] ?? 'Estado $targetId';
+      final shown =
+          _estadoNombre ?? _nombresEstados[targetId] ?? 'Estado $targetId';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Estado actualizado a $shown')),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error al actualizar estado: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al actualizar estado: $e')));
     }
   }
 
@@ -399,7 +510,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     );
   }
 
-  // ✅ NUEVA FUNCIÓN: Pedir observaciones obligatorias para estado 10
+  //  Pedir observaciones obligatorias para estado 10
   Future<String?> _pedirObservacionesObligatoriasEstado10() async {
     final ctrl = TextEditingController();
     String? err;
@@ -427,7 +538,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                   maxLines: 4,
                   decoration: InputDecoration(
                     labelText: 'Observaciones',
-                    hintText: 'Describe los detalles del trámite de Solcon en WorkFlow...',
+                    hintText:
+                        'Describe los detalles del trámite de Solcon en WorkFlow...',
                     errorText: err,
                     border: const OutlineInputBorder(),
                   ),
@@ -443,7 +555,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                 onPressed: () {
                   final texto = ctrl.text.trim();
                   if (texto.isEmpty) {
-                    setS(() => err = 'Las observaciones son obligatorias para este estado');
+                    setS(() => err =
+                        'Las observaciones son obligatorias para este estado');
                     return;
                   }
                   Navigator.pop(ctx, texto);
@@ -487,7 +600,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                   maxLines: 4,
                   decoration: InputDecoration(
                     labelText: 'Observaciones (obligatorias)',
-                    hintText: 'Describe los detalles del trámite de Solcon en WorkFlow...',
+                    hintText:
+                        'Describe los detalles del trámite de Solcon en WorkFlow...',
                     errorText: errObservaciones,
                   ),
                 ),
@@ -507,7 +621,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                     return;
                   }
                   if (observaciones.isEmpty) {
-                    setS(() => errObservaciones = 'Las observaciones son obligatorias');
+                    setS(() => errObservaciones =
+                        'Las observaciones son obligatorias');
                     return;
                   }
                   Navigator.pop(ctx, {
@@ -557,13 +672,15 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
               d == null ? 'Selecciona fecha' : DateFormat('dd/MM/yy').format(d);
 
           return AlertDialog(
-            title: const Text('Datos para ICM Concluida - Pendiente Presupuesto'),
+            title:
+                const Text('Datos para ICM Concluida - Pendiente Presupuesto'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: importeCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
                     labelText: 'Importe PMC (MXN)',
                     hintText: 'Ej. 9827878.50',
@@ -607,7 +724,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
               ),
               FilledButton(
                 onPressed: () {
-                  final importeText = importeCtrl.text.replaceAll(',', '').trim();
+                  final importeText =
+                      importeCtrl.text.replaceAll(',', '').trim();
                   final importe = double.tryParse(importeText);
                   final plazo = int.tryParse(plazoCtrl.text.trim());
 
@@ -624,7 +742,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                     return;
                   }
 
-                  final vigenciaISO = DateFormat('yyyy-MM-dd').format(pickedVigencia!);
+                  final vigenciaISO =
+                      DateFormat('yyyy-MM-dd').format(pickedVigencia!);
                   Navigator.pop(ctx, {
                     'importePmc': importe,
                     'plazoEntregaReal': plazo,
@@ -642,7 +761,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
 
   // Editar plazo de entrega (solo admin)
   Future<void> _editarPlazoEntrega() async {
-    final ctrl = TextEditingController(text: _p.plazoEntregaDias?.toString() ?? '');
+    final ctrl =
+        TextEditingController(text: _p.plazoEntregaDias?.toString() ?? '');
     String? error;
 
     final result = await showDialog<bool>(
@@ -675,7 +795,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                   }
                   final plazo = int.tryParse(text);
                   if (plazo == null || plazo <= 0) {
-                    setStateDialog(() => error = 'Ingresa un número válido mayor a 0');
+                    setStateDialog(
+                        () => error = 'Ingresa un número válido mayor a 0');
                     return;
                   }
                   Navigator.pop(ctx, true);
@@ -846,7 +967,9 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
               ],
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('CANCELAR')),
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, null),
+                  child: const Text('CANCELAR')),
               FilledButton(
                 onPressed: () {
                   final oficio = oficioCtrl.text.trim();
@@ -889,7 +1012,9 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('CANCELAR')),
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, null),
+                  child: const Text('CANCELAR')),
               FilledButton(
                 onPressed: () {
                   final t = ctrl.text.trim();
@@ -971,7 +1096,9 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
               ],
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('CANCELAR')),
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, null),
+                  child: const Text('CANCELAR')),
               FilledButton(
                 onPressed: () {
                   final n = numCtrl.text.trim();
@@ -1046,10 +1173,15 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
             children: [
               Row(
                 children: [
-                  IconButton(onPressed: () => Navigator.pop(ctx, false), icon: const Icon(Icons.close)),
+                  IconButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      icon: const Icon(Icons.close)),
                   const SizedBox(width: 4),
                   Text('Editar comentarios',
-                      style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                      style: Theme.of(ctx)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w700)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -1065,9 +1197,15 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCELAR'))),
+                  Expanded(
+                      child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('CANCELAR'))),
                   const SizedBox(width: 12),
-                  Expanded(child: FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('GUARDAR'))),
+                  Expanded(
+                      child: FilledButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('GUARDAR'))),
                 ],
               ),
             ],
@@ -1080,13 +1218,16 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
 
     try {
       final nuevo = ctrl.text.trim();
-      await _api.actualizarObservaciones(proyectoId: _p.id, observaciones: nuevo);
+      await _api.actualizarObservaciones(
+          proyectoId: _p.id, observaciones: nuevo);
       setState(() => _observaciones = nuevo);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Observaciones actualizadas')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Observaciones actualizadas')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -1096,7 +1237,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
       useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => _HistorialSheet(proyectoId: _p.id, api: _api),
     );
   }
@@ -1144,7 +1286,9 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCELAR')),
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('CANCELAR')),
                 FilledButton(
                   onPressed: () {
                     final mot = motivoCtrl.text.trim();
@@ -1193,7 +1337,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
       useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => _HistorialFechasSheet(proyectoId: _p.id, api: _api),
     );
   }
@@ -1204,7 +1349,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
       tipos = await _api.catGetTipos(); // [{id,nombre},...]
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error cargando tipos: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error cargando tipos: $e')));
       return;
     }
 
@@ -1213,7 +1359,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
       context: context,
       useSafeArea: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) {
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -1222,10 +1369,15 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
             children: [
               Row(
                 children: [
-                  IconButton(onPressed: () => Navigator.pop(ctx, false), icon: const Icon(Icons.close)),
+                  IconButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      icon: const Icon(Icons.close)),
                   const SizedBox(width: 4),
                   Text('Cambiar tipo de procedimiento',
-                      style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                      style: Theme.of(ctx)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w700)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -1233,18 +1385,27 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                 value: selId,
                 items: tipos
                     .map<DropdownMenuItem<int>>(
-                      (t) => DropdownMenuItem<int>(value: t['id'] as int, child: Text(t['nombre'].toString())),
-                )
+                      (t) => DropdownMenuItem<int>(
+                          value: t['id'] as int,
+                          child: Text(t['nombre'].toString())),
+                    )
                     .toList(),
                 onChanged: (v) => selId = v,
-                decoration: const InputDecoration(labelText: 'Tipo de procedimiento'),
+                decoration:
+                    const InputDecoration(labelText: 'Tipo de procedimiento'),
               ),
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCELAR'))),
+                  Expanded(
+                      child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('CANCELAR'))),
                   const SizedBox(width: 12),
-                  Expanded(child: FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('GUARDAR'))),
+                  Expanded(
+                      child: FilledButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('GUARDAR'))),
                 ],
               ),
             ],
@@ -1264,19 +1425,20 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
           _tipoProcNombre = resultName ?? _tipoProcNombre;
         });
         if (!mounted) return;
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Tipo de procedimiento actualizado')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Tipo de procedimiento actualizado')));
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
 
   // ====== PROYECCIÓN local ======
   Future<void> _pickSimFechaBase() async {
-    DateTime initial =
-        _simEntregaBase ?? (DateTime.tryParse(_fechaEstudioNecesidades ?? '') ?? DateTime.now());
+    DateTime initial = _simEntregaBase ??
+        (DateTime.tryParse(_fechaEstudioNecesidades ?? '') ?? DateTime.now());
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -1295,15 +1457,18 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
   }
 
   Map<String, DateTime?> _calcProyeccion() {
-    final base = _simEntregaBase ?? DateTime.tryParse(_fechaEstudioNecesidades ?? '');
+    final base =
+        _simEntregaBase ?? DateTime.tryParse(_fechaEstudioNecesidades ?? '');
     if (base == null) return {};
     final presupuesto = (_p.presupuestoEstimado ?? 0).toDouble();
 
     final solicitudIcm = base.add(const Duration(days: 20));
-    final icmValidada = solicitudIcm.add(Duration(days: presupuesto > 15000000 ? 90 : 30));
+    final icmValidada =
+        solicitudIcm.add(Duration(days: presupuesto > 15000000 ? 90 : 30));
     DateTime? pac;
     if (_pacHabilitado) pac = icmValidada.add(const Duration(days: 30));
-    final publicacion = icmValidada.add(Duration(days: 15 + (_pacHabilitado ? 30 : 0)));
+    final publicacion =
+        icmValidada.add(Duration(days: 15 + (_pacHabilitado ? 30 : 0)));
     final firma = publicacion.add(const Duration(days: 30));
     final plazo = _p.plazoEntregaDias ?? 0;
     final entregaFinal = firma.add(Duration(days: 1 + (plazo > 0 ? plazo : 0)));
@@ -1332,7 +1497,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
             Card(
               elevation: 0,
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                 child: Column(
@@ -1346,13 +1512,17 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                             _p.nombre,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 18),
                           ),
                         ),
                         if (_fechaEstudioNecesidades != null &&
-                            DateTime.tryParse(_fechaEstudioNecesidades!) != null)
-                          if (DateTime.now().isAfter(DateTime.parse(_fechaEstudioNecesidades!)))
-                            Icon(Icons.warning_amber_rounded, color: Colors.amber.shade800),
+                            DateTime.tryParse(_fechaEstudioNecesidades!) !=
+                                null)
+                          if (DateTime.now().isAfter(
+                              DateTime.parse(_fechaEstudioNecesidades!)))
+                            Icon(Icons.warning_amber_rounded,
+                                color: Colors.amber.shade800),
                       ],
                     ),
                     const SizedBox(height: 6),
@@ -1360,14 +1530,19 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                       '${_etapaNombre ?? "—"}  ·  ${_estadoNombre ?? "—"}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      style: TextStyle(
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant),
                     ),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        _pill(context: context, icon: Icons.work_outline_rounded, label: _tipoProcNombre ?? '—'),
+                        _pill(
+                            context: context,
+                            icon: Icons.work_outline_rounded,
+                            label: _tipoProcNombre ?? '—'),
                         _pill(
                             context: context,
                             icon: Icons.category_outlined,
@@ -1375,13 +1550,17 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                         _pill(
                             context: context,
                             icon: Icons.event_rounded,
-                            label: 'Entrega: ${_fmtDdMmYy(_fechaEstudioNecesidades)}'),
+                            label:
+                                'Entrega: ${_fmtDdMmYy(_fechaEstudioNecesidades)}'),
                         _pill(
                             context: context,
                             icon: Icons.payments_outlined,
                             label: _fmtMoney(_p.presupuestoEstimado)),
                         if (_p.departamento?.isNotEmpty == true)
-                          _pill(context: context, icon: Icons.apartment_outlined, label: _p.departamento!),
+                          _pill(
+                              context: context,
+                              icon: Icons.apartment_outlined,
+                              label: _p.departamento!),
                       ],
                     ),
                   ],
@@ -1395,16 +1574,23 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
             Card(
               elevation: 0,
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Comentarios',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 8),
-                    Text((_observaciones?.isNotEmpty == true) ? _observaciones! : '—',
+                    Text(
+                        (_observaciones?.isNotEmpty == true)
+                            ? _observaciones!
+                            : '—',
                         style: const TextStyle(height: 1.3)),
                     const SizedBox(height: 12),
                     Wrap(
@@ -1433,14 +1619,18 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
             Card(
               elevation: 0,
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Datos generales',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 8),
                     _kv('Departamento', _p.departamento ?? '—'),
                     _kv('Creado por', _creadoPor(_p)),
@@ -1456,20 +1646,24 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                           SizedBox(
                               width: 180,
                               child: Text('Código SII',
-                                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))),
+                                  style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant))),
                           const SizedBox(width: 8),
                           Expanded(
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text((_p as dynamic).codigoProyectoSii ?? '—'),
-                                  if ((_p as dynamic).centroClave != null)
-                                    Text(
-                                      'Centro: ${(_p as dynamic).centroClave}',
-                                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                                    ),
-                                ],
-                              )),
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text((_p as dynamic).codigoProyectoSii ?? '—'),
+                              if ((_p as dynamic).centroClave != null)
+                                Text(
+                                  'Centro: ${(_p as dynamic).centroClave}',
+                                  style: TextStyle(
+                                      fontSize: 12, color: Colors.grey),
+                                ),
+                            ],
+                          )),
                           if (isAdmin) // Solo admin puede editar
                             IconButton(
                                 tooltip: 'Editar código SII',
@@ -1491,12 +1685,17 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                           SizedBox(
                               width: 180,
                               child: Text('Mecanismo de contratación',
-                                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))),
+                                  style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant))),
                           const SizedBox(width: 8),
                           Expanded(
                               child: Text(_tipoProcNombre ?? '—',
-                                  maxLines: 2, overflow: TextOverflow.ellipsis)),
-                          if (widget.canEditTipoProcedimiento || isAdmin) //Admin también puede editar
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis)),
+                          if (widget.canEditTipoProcedimiento ||
+                              isAdmin) //Admin también puede editar
                             IconButton(
                                 tooltip: 'Editar tipo de procedimiento',
                                 icon: const Icon(Icons.edit_rounded),
@@ -1514,11 +1713,15 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                           SizedBox(
                               width: 180,
                               child: Text('Entrega de especificaciones',
-                                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))),
+                                  style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant))),
                           const SizedBox(width: 8),
                           Expanded(
                               child: Text(_fmtDdMmYy(_fechaEstudioNecesidades),
-                                  maxLines: 1, overflow: TextOverflow.ellipsis)),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis)),
                           if (widget.canEdit)
                             IconButton(
                                 tooltip: 'Cambiar fecha de entrega',
@@ -1537,7 +1740,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                       ],
                     ),
 
-                    if (_p.numeroSolcon != null) _kv('Núm. SolCon', _p.numeroSolcon!),
+                    if (_p.numeroSolcon != null)
+                      _kv('Núm. SolCon', _p.numeroSolcon!),
 
                     // Plazo de entrega - EDITABLE POR ADMIN
                     Padding(
@@ -1548,11 +1752,16 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                           SizedBox(
                               width: 180,
                               child: Text('Plazo de entrega (días)',
-                                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))),
+                                  style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant))),
                           const SizedBox(width: 8),
                           Expanded(
-                              child: Text((_p.plazoEntregaDias?.toString() ?? '—'),
-                                  maxLines: 1, overflow: TextOverflow.ellipsis)),
+                              child: Text(
+                                  (_p.plazoEntregaDias?.toString() ?? '—'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis)),
                           if (isAdmin) // Solo admin puede editar
                             IconButton(
                                 tooltip: 'Editar plazo de entrega',
@@ -1562,43 +1771,57 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                       ),
                     ),
 
-                    if (_p.atFechaSolicitudIcm != null || _p.atOficioSolicitudIcm != null) ...[
-                      _kv('Fecha solicitud ICM', _fmtDdMmYyOrPend(_p.atFechaSolicitudIcm)),
-                      _kv('Oficio solicitud ICM', _p.atOficioSolicitudIcm ?? 'Aún no registrado'),
+                    if (_p.atFechaSolicitudIcm != null ||
+                        _p.atOficioSolicitudIcm != null) ...[
+                      _kv('Fecha solicitud ICM',
+                          _fmtDdMmYyOrPend(_p.atFechaSolicitudIcm)),
+                      _kv('Oficio solicitud ICM',
+                          _p.atOficioSolicitudIcm ?? 'Aún no registrado'),
                     ],
 
                     // =================== DATOS DIAM (VISIBLES PARA TODOS) ===================
                     const SizedBox(height: 12),
-                    Builder(builder: (_) {
-                      final esDiam = (_etapaNombre ?? '').toUpperCase() == 'DIAM';
-                      if (!esDiam) return const SizedBox.shrink();
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Divider(height: 22),
-                          Text('Datos DIAM',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 8),
-                          _kv('No. ICM',
-                              (_p.numeroIcm == null || (_p.numeroIcm?.trim().isEmpty ?? true))
-                                  ? 'Aún no registrado'
-                                  : _p.numeroIcm!),
-                          _kv('Fecha ICM', _fmtDdMmYyOrPend(_p.fechaIcm)),
-                          _kv('Importe PMC', _fmtMoneyOrPend(_p.importePmc)),
-                          _kv('Fecha envío PMC', _fmtDdMmYyOrPend(_p.fechaEnvioPmc)),
-                          // CAMPOS para estado 9
-                          if (_p.plazoEntregaReal != null)
-                            _kv('Plazo entrega real (días)', _p.plazoEntregaReal.toString()),
-                          if (_p.vigenciaIcm != null)
-                            _kv('Vigencia ICM', _fmtDdMmYyOrPend(_p.vigenciaIcm)),
-                        ],
-                      );
-                    }),
-                    // ========================================================================
+                    const Divider(height: 22),
+                    Text('Datos DIAM',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 20),
+                    _kv(
+                        'No. ICM',
+                        (_p.numeroIcm == null ||
+                                (_p.numeroIcm?.trim().isEmpty ?? true))
+                            ? 'Aún no registrado'
+                            : _p.numeroIcm!),
+                    _kv('Fecha ICM (estimada)', _fmtDdMmYyOrPend(_p.fechaIcm)),
+                    _kv('Importe PMC', _fmtMoneyOrPend(_p.importePmc)),
+                    _kv('Fecha de ICM validada',
+                        _fmtDdMmYyOrPend(_p.fechaEnvioPmc)),
+// CAMPOS para estado 9 - mostrados condicionalmente si existen
+                    if (_p.plazoEntregaReal != null)
+                      _kv('Plazo entrega real (días)',
+                          _p.plazoEntregaReal.toString()),
+                    if (_p.vigenciaIcm != null)
+                      _kv('Vigencia ICM', _fmtDdMmYyOrPend(_p.vigenciaIcm)),
+
+// =================== DATOS ABASTECIMIENTOS (VISIBLES PARA TODOS) ===================
+                    const SizedBox(height: 12),
+                    const Divider(height: 22),
+                    Text('Datos Abastecimientos',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 20),
+                    _kv('Entrega de expediente a OP', _fmtDdMmYyOrPend(_p.fechaEntregaExp)),
+                    _kv('Fecha de publicación', _fmtDdMmYyOrPend(_p.fechaPublicacion)),
+                    _kv('Número de procedimiento MSC',
+                        _p.numeroProcedimientoMsc ?? 'Aún no registrado'),
+// ========================================================================
+// ========================================================================
                   ],
+
                 ),
               ),
             ),
@@ -1609,17 +1832,22 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
             Card(
               elevation: 0,
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Proyección de eventos',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 6),
                     Text('Calcula la fecha de entrega aproximada.',
-                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+                        style: TextStyle(
+                            color: cs.onSurfaceVariant, fontSize: 12)),
                     const SizedBox(height: 10),
 
                     // Fecha base (simulada)
@@ -1630,16 +1858,24 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                         children: [
                           SizedBox(
                               width: 180,
-                              child: Text('Entrega de especificación (simulada)',
-                                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))),
+                              child: Text(
+                                  'Entrega de especificación (simulada)',
+                                  style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant))),
                           const SizedBox(width: 8),
                           Expanded(
                               child: Text(
-                                  _fmtDdMmYyFromDate(
-                                      _simEntregaBase ?? DateTime.tryParse(_fechaEstudioNecesidades ?? '')),
+                                  _fmtDdMmYyFromDate(_simEntregaBase ??
+                                      DateTime.tryParse(
+                                          _fechaEstudioNecesidades ?? '')),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis)),
-                          IconButton(tooltip: 'Elegir fecha simulada', icon: const Icon(Icons.event), onPressed: _pickSimFechaBase),
+                          IconButton(
+                              tooltip: 'Elegir fecha simulada',
+                              icon: const Icon(Icons.event),
+                              onPressed: _pickSimFechaBase),
                         ],
                       ),
                     ),
@@ -1654,16 +1890,19 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                           children: [
                             Checkbox(
                                 value: _pacHabilitado,
-                                onChanged: (v) => setState(() => _pacHabilitado = v ?? false)),
+                                onChanged: (v) => setState(
+                                    () => _pacHabilitado = v ?? false)),
                             const Text('Habilitar PAC'),
                           ],
                         ),
                         TextButton.icon(
-                            onPressed: () => setState(() => _simEntregaBase = null),
+                            onPressed: () =>
+                                setState(() => _simEntregaBase = null),
                             icon: const Icon(Icons.restart_alt),
                             label: const Text('Restablecer fecha')),
                         FilledButton.icon(
-                            onPressed: () => setState(() => _mostrarProyeccion = true),
+                            onPressed: () =>
+                                setState(() => _mostrarProyeccion = true),
                             icon: const Icon(Icons.calculate_outlined),
                             label: const Text('Calcular proyección')),
                       ],
@@ -1679,11 +1918,13 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
 
                           // --- Validación con año fin del código proyecto ---
                           bool excedeFechaFin = false;
-                          if (entregaFinal != null && _p.codigoProyectoAnoFin != null) {
-                            final fechaFinProyecto = DateTime.tryParse(_p.codigoProyectoAnoFin!);
+                          if (entregaFinal != null &&
+                              _p.codigoProyectoAnoFin != null) {
+                            final fechaFinProyecto =
+                                DateTime.tryParse(_p.codigoProyectoAnoFin!);
                             if (fechaFinProyecto != null) {
-                              final entregaSinHora =
-                              DateTime(entregaFinal.year, entregaFinal.month, entregaFinal.day);
+                              final entregaSinHora = DateTime(entregaFinal.year,
+                                  entregaFinal.month, entregaFinal.day);
                               if (entregaSinHora.isAfter(fechaFinProyecto)) {
                                 excedeFechaFin = true;
                               }
@@ -1694,13 +1935,20 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Divider(height: 22),
-                              _kv('Solicitud de ICM', _fmtDdMmYyFromDate(m['solic_icm'])),
-                              _kv('ICM validada', _fmtDdMmYyFromDate(m['icm_validada'])),
-                              if (_pacHabilitado) _kv('PAC', _fmtDdMmYyFromDate(m['pac'])),
-                              _kv('Publicación', _fmtDdMmYyFromDate(m['publicacion'])),
-                              _kv('Firma de contrato', _fmtDdMmYyFromDate(m['firma'])),
-                              _kv('Fecha de entrega', _fmtDdMmYyFromDate(entregaFinal),
-                                  valueColor: excedeFechaFin ? Colors.red : null),
+                              _kv('Solicitud de ICM',
+                                  _fmtDdMmYyFromDate(m['solic_icm'])),
+                              _kv('ICM validada',
+                                  _fmtDdMmYyFromDate(m['icm_validada'])),
+                              if (_pacHabilitado)
+                                _kv('PAC', _fmtDdMmYyFromDate(m['pac'])),
+                              _kv('Publicación',
+                                  _fmtDdMmYyFromDate(m['publicacion'])),
+                              _kv('Firma de contrato',
+                                  _fmtDdMmYyFromDate(m['firma'])),
+                              _kv('Fecha de entrega',
+                                  _fmtDdMmYyFromDate(entregaFinal),
+                                  valueColor:
+                                      excedeFechaFin ? Colors.red : null),
                             ],
                           );
                         },
@@ -1716,22 +1964,26 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
             Card(
               elevation: 0,
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Avance por estados',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 6),
 
-                    // Grupo Áreas Técnicas: 2,3,4,10,11
+                    // Grupo Áreas Técnicas: 2,3,4
                     _estadoGroup(
                       title: 'Áreas Técnicas',
                       estados: _techStates,
                       // AVANZAR solo AT o admin
-                      enabledForAdvance: isAdmin || isAreaTecnicaUser,
+                      enabledForAdvance: (isAdmin || isAreaTecnicaUser),
                     ),
 
                     const Divider(height: 22),
@@ -1741,7 +1993,98 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                       title: 'DIAM',
                       estados: _diamStates,
                       // AVANZAR solo DIAM o admin
-                      enabledForAdvance: isAdmin || isDiamUser,
+                      enabledForAdvance: (isAdmin || isDiamUser),
+                    ),
+
+                    const Divider(height: 22),
+
+                    // Grupo Solcon: Estado 10 separado
+                    _estadoGroup(
+                      title: 'Trámite de Solcon',
+                      estados: _solconStates,
+                      enabledForAdvance: isAdmin || isAreaTecnicaUser,
+                    ),
+
+                    // Campo de fecha de expediente estimado - solo visible cuando el estado 10 está activo
+                    if (_estadoIdActual == 10 ||
+                        _solconStates.contains(_estadoIdActual))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12, left: 40),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Fecha de entrega de expediente (estimado)',
+                              style: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            InkWell(
+                              onTap: _seleccionarFechaExpEstim,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .outline),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      _fechaExpEstim != null
+                                          ? DateFormat('dd/MM/yyyy')
+                                              .format(_fechaExpEstim!)
+                                          : 'Seleccionar fecha',
+                                      style: TextStyle(
+                                        color: _fechaExpEstim != null
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .onSurface
+                                            : Theme.of(context)
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                      ),
+                                    ),
+                                    Icon(Icons.calendar_today,
+                                        size: 20,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Se enviará una notificación cuando esté por vencer',
+                              style: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    const Divider(height: 22),
+
+                    // Grupo Firma: Estado 11
+                    _estadoGroup(
+                      title: 'ABASTECIMIENTOS',
+                      estados: _abastecimientosStates,
+                      enabledForAdvance: isAdmin || isAbastUser,
                     ),
 
                     const SizedBox(height: 6),
@@ -1758,14 +2101,19 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
             // Aviso por vencimiento (si aplica)
             if (_fechaEstudioNecesidades != null &&
                 DateTime.tryParse(_fechaEstudioNecesidades!) != null &&
-                DateTime.now().isAfter(DateTime.parse(_fechaEstudioNecesidades!)) &&
-                _estadoIdActual == 1) // <-- AÑADIDO: No mostrar si es estado inicial
+                DateTime.now()
+                    .isAfter(DateTime.parse(_fechaEstudioNecesidades!)) &&
+                _estadoIdActual ==
+                    1) // <-- AÑADIDO: No mostrar si es estado inicial
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: cs.errorContainer, borderRadius: BorderRadius.circular(12)),
-                  child: Text('La fecha de entrega de especificaciones ya venció.',
+                  decoration: BoxDecoration(
+                      color: cs.errorContainer,
+                      borderRadius: BorderRadius.circular(12)),
+                  child: Text(
+                      'La fecha de entrega de especificaciones ya venció.',
                       style: TextStyle(color: cs.onErrorContainer)),
                 ),
               ),
@@ -1781,19 +2129,176 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
       useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => _HistorialEstadosSheet(proyectoId: _p.id, api: _api),
     );
   }
+  Future<String?> _pedirObservacionesObligatoriasEstado13() async {
+    final ctrl = TextEditingController();
+    String? err;
 
-  Widget _pill({required BuildContext context, required IconData icon, required String label}) {
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setS) {
+          return AlertDialog(
+            title: const Text('Observaciones obligatorias - Estado 13'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Para avanzar al estado 13 es necesario registrar observaciones.',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: ctrl,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    labelText: 'Observaciones',
+                    hintText: 'Ingresa las observaciones requeridas...',
+                    errorText: err,
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('CANCELAR'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final texto = ctrl.text.trim();
+                  if (texto.isEmpty) {
+                    setS(() => err = 'Las observaciones son obligatorias');
+                    return;
+                  }
+                  Navigator.pop(ctx, texto);
+                },
+                child: const Text('CONTINUAR'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  // Diálogo para estado 14 - Fecha de publicación y número de procedimiento MSC
+  Future<Map<String, String>?> _pedirDatosEstado14() async {
+    final procedimientoCtrl = TextEditingController();
+    DateTime? pickedFechaPublicacion;
+    String? errProcedimiento;
+    String? errFecha;
+
+    return showDialog<Map<String, String>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setS) {
+          Future<void> pickFechaPublicacion() async {
+            final now = DateTime.now();
+            final d = await showDatePicker(
+              context: ctx,
+              initialDate: now,
+              firstDate: DateTime(now.year - 1, 1, 1),
+              lastDate: DateTime(now.year + 2, 12, 31),
+              helpText: 'Fecha de publicación',
+              confirmText: 'SELECCIONAR',
+              cancelText: 'CANCELAR',
+              locale: const Locale('es', 'MX'),
+            );
+            if (d != null) setS(() => pickedFechaPublicacion = d);
+          }
+
+          String _fmt(DateTime? d) =>
+              d == null ? 'Selecciona fecha' : DateFormat('dd/MM/yy').format(d);
+
+          return AlertDialog(
+            title: const Text('Datos para publicación'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: procedimientoCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Número de procedimiento MSC',
+                    hintText: 'Ej. MSC-2024-001',
+                    errorText: errProcedimiento,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: pickFechaPublicacion,
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Fecha de publicación',
+                      errorText: errFecha,
+                      border: const OutlineInputBorder(),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(_fmt(pickedFechaPublicacion)),
+                        const Icon(Icons.event),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('CANCELAR'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final procedimiento = procedimientoCtrl.text.trim();
+                  if (procedimiento.isEmpty) {
+                    setS(() => errProcedimiento = 'Ingresa el número de procedimiento');
+                    return;
+                  }
+                  if (pickedFechaPublicacion == null) {
+                    setS(() => errFecha = 'Selecciona la fecha de publicación');
+                    return;
+                  }
+
+                  final fechaISO = DateFormat('yyyy-MM-dd').format(pickedFechaPublicacion!);
+                  Navigator.pop(ctx, {
+                    'fecha_publicacion': fechaISO,
+                    'numero_procedimiento_msc': procedimiento,
+                  });
+                },
+                child: const Text('GUARDAR'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  Widget _pill(
+      {required BuildContext context,
+      required IconData icon,
+      required String label}) {
     final cs = Theme.of(context).colorScheme;
     final maxW = MediaQuery.of(context).size.width - 48;
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: maxW),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(color: cs.secondaryContainer, borderRadius: BorderRadius.circular(999)),
+        decoration: BoxDecoration(
+            color: cs.secondaryContainer,
+            borderRadius: BorderRadius.circular(999)),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1803,7 +2308,10 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
               child: Text(label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: cs.onSecondaryContainer, fontSize: 12, fontWeight: FontWeight.w600)),
+                  style: TextStyle(
+                      color: cs.onSecondaryContainer,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
             ),
           ],
         ),
@@ -1824,11 +2332,14 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 6),
-          child: Text(title, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          child: Text(title,
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ),
         ...estados.map((eid) {
           final idx = _orderedStates.indexOf(eid);
-          final checked = (idx != -1 && currIdx != -1) ? idx <= currIdx : eid <= curr;
+          final checked =
+              (idx != -1 && currIdx != -1) ? idx <= currIdx : eid <= curr;
 
           final canTouch = widget.canEdit && !isViewer && enabledForAdvance;
 
@@ -1838,7 +2349,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
 
           Future<void> onChange(bool? v) async {
             if (!canTouch) return;
-            final val = v ?? false; // val=true si se marcó, val=false si se desmarcó
+            final val =
+                v ?? false; // val=true si se marcó, val=false si se desmarcó
 
             if (val) {
               // ----- LÓGICA DE AVANCE -----
@@ -1849,11 +2361,11 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                 // Si se hace clic en un estado futuro (ej. saltar de 2 a 4)
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Debe completar los estados en orden')),
+                  const SnackBar(
+                      content: Text('Debe completar los estados en orden')),
                 );
               }
               // Si se hace clic en uno ya marcado, no se hace nada (val=true)
-
             } else {
               // ----- LÓGICA DE RETROCESO -----
               // Solo se puede desmarcar el checkbox ACTUAL (el último activo).
@@ -1862,13 +2374,16 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                 final targetRank = currRank - 1;
 
                 // Si desmarcamos el primer item (rank 0, ej. estado 2), volvemos al estado base '1'
-                final targetId = (targetRank >= 0) ? _orderedStates[targetRank] : 1;
+                final targetId =
+                    (targetRank >= 0) ? _orderedStates[targetRank] : 1;
                 await _updateEstado(targetId);
               } else if (clickRank < currRank) {
                 // Si se hace clic en un estado anterior (ej. desmarcar 2 cuando estamos en 4)
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Solo puede desmarcar el último estado activo')),
+                  const SnackBar(
+                      content:
+                          Text('Solo puede desmarcar el último estado activo')),
                 );
               }
             }
@@ -1880,7 +2395,9 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
             controlAffinity: ListTileControlAffinity.leading,
             title: Text(_nombresEstados[eid] ?? 'Estado $eid'),
             value: checked,
-            onChanged: canTouch ? onChange : null, // <- deshabilitado si no tiene permiso
+            onChanged: canTouch
+                ? onChange
+                : null, // <- deshabilitado si no tiene permiso
           );
         }),
       ],
@@ -1898,7 +2415,9 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
           const SizedBox(width: 8),
           Expanded(
               child: Text(v,
-                  style: TextStyle(color: valueColor), softWrap: true, overflow: TextOverflow.visible)),
+                  style: TextStyle(color: valueColor),
+                  softWrap: true,
+                  overflow: TextOverflow.visible)),
         ],
       ),
     );
@@ -1923,7 +2442,8 @@ class _HistorialSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxH = MediaQuery.of(context).size.height * 0.88; // alto "modal" grande
+    final maxH =
+        MediaQuery.of(context).size.height * 0.88; // alto "modal" grande
 
     return SafeArea(
       child: ClipRRect(
@@ -1940,10 +2460,15 @@ class _HistorialSheet extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
                   child: Row(
                     children: [
-                      IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+                      IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close)),
                       const SizedBox(width: 4),
                       Text('Historial de comentarios',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w700)),
                       const Spacer(),
                     ],
                   ),
@@ -1957,7 +2482,9 @@ class _HistorialSheet extends StatelessWidget {
                     builder: (ctx, snap) {
                       if (snap.connectionState == ConnectionState.waiting) {
                         return const Center(
-                            child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()));
+                            child: Padding(
+                                padding: EdgeInsets.all(24),
+                                child: CircularProgressIndicator()));
                       }
                       if (snap.hasError) {
                         return Padding(
@@ -1969,9 +2496,9 @@ class _HistorialSheet extends StatelessWidget {
                       if (data.isEmpty) {
                         return const Center(
                             child: Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Text('Sin registros de historial'),
-                            ));
+                          padding: EdgeInsets.all(16),
+                          child: Text('Sin registros de historial'),
+                        ));
                       }
 
                       return ListView.separated(
@@ -1982,26 +2509,37 @@ class _HistorialSheet extends StatelessWidget {
                           final it = data[i];
                           final obs = (it['observacion'] ?? '').toString();
                           final rpe = (it['cambiado_por_rpe'] ?? '').toString();
-                          final fecha = _fmt((it['created_at'] ?? '').toString());
-                          final estado = (it['estado_al_crear'] ?? '').toString();
-                          final estadoId = (it['estado_id_al_crear'] ?? '').toString();
+                          final fecha =
+                              _fmt((it['created_at'] ?? '').toString());
+                          final estado =
+                              (it['estado_al_crear'] ?? '').toString();
+                          final estadoId =
+                              (it['estado_id_al_crear'] ?? '').toString();
 
                           return Card(
                             elevation: 0,
-                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
                             child: Padding(
-                              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                              padding:
+                                  const EdgeInsets.fromLTRB(12, 10, 12, 12),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Wrap(spacing: 8, runSpacing: 8, children: [
                                     _chip(ctx, Icons.schedule, fecha),
-                                    if (rpe.isNotEmpty) _chip(ctx, Icons.badge_outlined, 'RPE $rpe'),
+                                    if (rpe.isNotEmpty)
+                                      _chip(ctx, Icons.badge_outlined,
+                                          'RPE $rpe'),
                                     if (estado.isNotEmpty)
-                                      _chip(ctx, Icons.flag_outlined, 'Estado: $estado')
+                                      _chip(ctx, Icons.flag_outlined,
+                                          'Estado: $estado')
                                     else if (estadoId.isNotEmpty)
-                                      _chip(ctx, Icons.flag_outlined, 'Estado ID: $estadoId'),
+                                      _chip(ctx, Icons.flag_outlined,
+                                          'Estado ID: $estadoId'),
                                   ]),
                                   const SizedBox(height: 8),
                                   Text(obs.isNotEmpty ? obs : '—'),
@@ -2026,11 +2564,17 @@ class _HistorialSheet extends StatelessWidget {
     final cs = Theme.of(ctx).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: cs.secondaryContainer, borderRadius: BorderRadius.circular(999)),
+      decoration: BoxDecoration(
+          color: cs.secondaryContainer,
+          borderRadius: BorderRadius.circular(999)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 16, color: cs.onSecondaryContainer),
         const SizedBox(width: 6),
-        Text(label, style: TextStyle(color: cs.onSecondaryContainer, fontSize: 12, fontWeight: FontWeight.w600)),
+        Text(label,
+            style: TextStyle(
+                color: cs.onSecondaryContainer,
+                fontSize: 12,
+                fontWeight: FontWeight.w600)),
       ]),
     );
   }
@@ -2071,10 +2615,15 @@ class _HistorialFechasSheet extends StatelessWidget {
         children: [
           Row(
             children: [
-              IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+              IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close)),
               const SizedBox(width: 4),
               Text('Historial de fechas de entrega',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 8),
@@ -2083,14 +2632,19 @@ class _HistorialFechasSheet extends StatelessWidget {
             builder: (ctx, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
                 return const Padding(
-                    padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()));
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CircularProgressIndicator()));
               }
               if (snap.hasError) {
-                return Padding(padding: const EdgeInsets.all(16), child: Text('Error: ${snap.error}'));
+                return Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text('Error: ${snap.error}'));
               }
               final data = snap.data ?? [];
               if (data.isEmpty) {
-                return const Padding(padding: EdgeInsets.all(16), child: Text('Sin registros de historial'));
+                return const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('Sin registros de historial'));
               }
 
               return ListView.separated(
@@ -2108,8 +2662,10 @@ class _HistorialFechasSheet extends StatelessWidget {
 
                   return Card(
                     elevation: 0,
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                       child: Column(
@@ -2117,11 +2673,16 @@ class _HistorialFechasSheet extends StatelessWidget {
                         children: [
                           Wrap(spacing: 8, runSpacing: 8, children: [
                             _chip(ctx, Icons.schedule, _fmtDT(ts)),
-                            if (rpe.isNotEmpty) _chip(ctx, Icons.badge_outlined, 'RPE $rpe'),
+                            if (rpe.isNotEmpty)
+                              _chip(ctx, Icons.badge_outlined, 'RPE $rpe'),
                           ]),
                           const SizedBox(height: 8),
-                          Text('Anterior: ${_fmtD(fa)}  →  Nueva: ${_fmtD(fn)}'),
-                          if (mot.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text('Motivo: $mot')),
+                          Text(
+                              'Anterior: ${_fmtD(fa)}  →  Nueva: ${_fmtD(fn)}'),
+                          if (mot.isNotEmpty)
+                            Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text('Motivo: $mot')),
                         ],
                       ),
                     ),
@@ -2139,13 +2700,19 @@ class _HistorialFechasSheet extends StatelessWidget {
     final cs = Theme.of(ctx).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: cs.secondaryContainer, borderRadius: BorderRadius.circular(999)),
+      decoration: BoxDecoration(
+          color: cs.secondaryContainer,
+          borderRadius: BorderRadius.circular(999)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16, color: cs.onSecondaryContainer),
           const SizedBox(width: 6),
-          Text(label, style: TextStyle(color: cs.onSecondaryContainer, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(label,
+              style: TextStyle(
+                  color: cs.onSecondaryContainer,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -2168,10 +2735,10 @@ class _HistorialEstadosSheet extends StatelessWidget {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
-    final maxH = MediaQuery.of(context).size.height * 0.85; // alto máximo del bottom sheet
+    final maxH = MediaQuery.of(context).size.height *
+        0.85; // alto máximo del bottom sheet
     return SizedBox(
       height: maxH,
       child: Padding(
@@ -2180,10 +2747,15 @@ class _HistorialEstadosSheet extends StatelessWidget {
           children: [
             Row(
               children: [
-                IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+                IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close)),
                 const SizedBox(width: 4),
                 Text('Historial de cambios de estado',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w700)),
               ],
             ),
             const SizedBox(height: 8),
@@ -2203,7 +2775,8 @@ class _HistorialEstadosSheet extends StatelessWidget {
                   }
                   final data = snap.data ?? [];
                   if (data.isEmpty) {
-                    return const Center(child: Text('Sin registros de historial'));
+                    return const Center(
+                        child: Text('Sin registros de historial'));
                   }
 
                   return ListView.separated(
@@ -2219,8 +2792,11 @@ class _HistorialEstadosSheet extends StatelessWidget {
 
                       return Card(
                         elevation: 0,
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                           child: Column(
@@ -2228,12 +2804,16 @@ class _HistorialEstadosSheet extends StatelessWidget {
                             children: [
                               Wrap(spacing: 8, runSpacing: 8, children: [
                                 _chip(ctx, Icons.schedule, _fmtDT(ts)),
-                                if (rpe.isNotEmpty) _chip(ctx, Icons.badge_outlined, 'RPE $rpe'),
+                                if (rpe.isNotEmpty)
+                                  _chip(ctx, Icons.badge_outlined, 'RPE $rpe'),
                               ]),
                               const SizedBox(height: 8),
                               Text('De: $ea'),
                               Text('A:  $en'),
-                              if (mot.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text('Motivo: $mot')),
+                              if (mot.isNotEmpty)
+                                Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text('Motivo: $mot')),
                             ],
                           ),
                         ),
@@ -2253,11 +2833,17 @@ class _HistorialEstadosSheet extends StatelessWidget {
     final cs = Theme.of(ctx).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: cs.secondaryContainer, borderRadius: BorderRadius.circular(999)),
+      decoration: BoxDecoration(
+          color: cs.secondaryContainer,
+          borderRadius: BorderRadius.circular(999)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 16, color: cs.onSecondaryContainer),
         const SizedBox(width: 6),
-        Text(label, style: TextStyle(color: cs.onSecondaryContainer, fontSize: 12, fontWeight: FontWeight.w600)),
+        Text(label,
+            style: TextStyle(
+                color: cs.onSecondaryContainer,
+                fontSize: 12,
+                fontWeight: FontWeight.w600)),
       ]),
     );
   }

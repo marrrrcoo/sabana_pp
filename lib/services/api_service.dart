@@ -574,6 +574,8 @@ class ApiService {
     String? vigenciaIcmISO,
     String? observaciones,
     String? numeroSolcon,
+    String? fechaPublicacion,
+    String? numeroProcedimientoMSC,
   }) async {
     final url = Uri.parse('$baseUrl/proyectos/$proyectoId/estado');
     final body = {
@@ -592,6 +594,8 @@ class ApiService {
       if (actorRpe != null) 'actor_rpe': actorRpe,
       if (actorRol != null) 'actor_rol': actorRol,
       if (numeroSolcon != null && numeroSolcon.trim().isNotEmpty) 'numero_solcon': numeroSolcon.trim(),
+      if (fechaPublicacion != null) 'fecha_publicacion': fechaPublicacion,
+      if (numeroProcedimientoMSC != null) 'numero_procedimiento_msc': numeroProcedimientoMSC,
     };
 
     final res = await http.put(url, headers: _authJsonHeaders, body: jsonEncode(body));
@@ -689,5 +693,45 @@ class ApiService {
       throw Exception('Error al cargar códigos SII: ${response.statusCode}');
     }
   }
+
+// Fecha de expediente estimado
+  Future<void> actualizarFechaExpEstim(int proyectoId, String fechaISO) async {
+    final url = Uri.parse('$baseUrl/proyectos/$proyectoId/fecha_exp_estim');
+    final response = await http.put(
+      url,
+      headers: _authJsonHeaders,
+      body: jsonEncode({'fecha_exp_estim': fechaISO}),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Error al actualizar fecha de expediente estimado: ${response.body}');
+    }
+  }
+
+// Agregar este método en tu ApiService, en la sección de Proyectos
+
+  Future<List<Proyecto>> getProyectosPorEtapaPaged({
+    required String etapa,
+    int page = 1,
+    int limit = 20,
+    String order = 'vencimiento',
+  }) async {
+    final offset = (page - 1) * limit;
+    final uri = Uri.parse('$baseUrl/proyectos').replace(queryParameters: {
+      'etapa': etapa,
+      'order': order,
+      'limit': '$limit',
+      'offset': '$offset',
+    });
+
+    final res = await http.get(uri, headers: _authJsonHeaders);
+    if (res.statusCode != 200) {
+      throw Exception('Error al cargar proyectos por etapa: ${res.body}');
+    }
+
+    final List<dynamic> data = jsonDecode(res.body);
+    return data.map((j) => Proyecto.fromJson(j)).toList();
+  }
+
 
 }

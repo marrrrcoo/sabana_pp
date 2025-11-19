@@ -59,7 +59,8 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
   bool get isAdmin => widget.rol == 'admin';
   bool get isViewer => widget.rol == 'viewer';
   bool get isDiamUser => widget.departamentoId == DIAM_DEPT_ID;
-  bool get canCreate => !isViewer && !isDiamUser;
+  bool get isAbastUser => widget.departamentoId == ABASTECIMIENTOS_ID;
+  bool get canCreate => !isViewer && !isDiamUser && !isAbastUser;
   bool get canEditTipoProcedimiento =>
       isAdmin || widget.departamentoId == ABASTECIMIENTOS_ID;
 
@@ -101,9 +102,13 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
   }
 
   Future<List<Proyecto>> _fetchPage(int page) {
-    // NUEVO: DIAM ve todos los proyectos (como admin/viewer)
-    if (isAdmin || isViewer || isDiamUser) {
+    // MODIFICADO: DIAM y Abastecimientos ven solo proyectos de su etapa
+    if (isAdmin || isViewer) {
       return api.getTodosProyectosPaged(page: page, limit: _pageSize, order: 'vencimiento');
+    } else if (isDiamUser) {
+      return api.getProyectosPorEtapaPaged(etapa: 'DIAM', page: page, limit: _pageSize, order: 'vencimiento');
+    } else if (isAbastUser) {
+      return api.getProyectosPorEtapaPaged(etapa: 'Abastecimientos', page: page, limit: _pageSize, order: 'vencimiento');
     } else {
       return api.getProyectosPorDepartamentoPaged(
         widget.departamentoId, page: page, limit: _pageSize, order: 'vencimiento',
@@ -436,6 +441,14 @@ class _ProyectosScreenState extends State<ProyectosScreen> {
                     if (isDiamUser) ...[
                       // ÚNICO chip para DIAM: "Previo"
                       _chipPrevio('Previo', _countPrevio),
+                    ]else if (isAbastUser) ...[
+                      // Para Abastecimientos, mostramos chips normales (como áreas técnicas)
+                      _chip('Todos', _items.length, ProjFilter.todos),
+                      _chip('Pendientes', _countPend, ProjFilter.pendientes),
+                      _chip('Por vencer', _countPorVenc, ProjFilter.porVencer),
+                      _chip('Vencidos', _countVenc, ProjFilter.vencidos,
+                          highlight: cs.errorContainer, onHighlight: cs.onErrorContainer),
+                      _chip('Completados', _countComp, ProjFilter.completados),
                     ] else ...[
                       _chip('Todos', _items.length, ProjFilter.todos),
                       _chip('Pendientes', _countPend, ProjFilter.pendientes),

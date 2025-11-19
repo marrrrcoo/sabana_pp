@@ -61,6 +61,10 @@ class Proyecto {
   final String? atOficioSolicitudIcm;
   final int? plazoEntregaReal;
   final String? vigenciaIcm;
+  final String? fechaExpEstim;
+  final String? fechaEntregaExp;
+  final String? fechaPublicacion;
+  final String? numeroProcedimientoMsc;
 
   Proyecto({
     required this.id,
@@ -105,11 +109,14 @@ class Proyecto {
     this.numeroIcm,
     this.importePmc,
     this.fechaEnvioPmc,
-    // ✅ NUEVOS CAMPOS
     this.atFechaSolicitudIcm,
     this.atOficioSolicitudIcm,
     this.plazoEntregaReal,
     this.vigenciaIcm,
+    this.fechaExpEstim,
+    this.fechaEntregaExp,
+    this.fechaPublicacion,
+    this.numeroProcedimientoMsc,
   });
 
   bool get vencio {
@@ -131,7 +138,7 @@ class Proyecto {
     return DateFormat('dd/MM/yy').format(dt);
   }
 
-  // ✅ NUEVO: Helper para formatear fecha de solicitud ICM
+  // Helper para formatear fecha de solicitud ICM
   String get atFechaSolicitudIcmDdMmYy {
     final s = atFechaSolicitudIcm;
     if (s == null || s.isEmpty) return '—';
@@ -190,15 +197,18 @@ class Proyecto {
       numeroIcm: json['numero_icm']?.toString(),
       fechaEnvioPmc: json['fecha_envio_pmc']?.toString(),
       importePmc: _asDoubleOrNull(json['importe_pmc']),
-      // ✅ NUEVOS CAMPOS - mapeo desde la base de datos
       atFechaSolicitudIcm: json['at_fecha_solicitud_icm']?.toString(),
       atOficioSolicitudIcm: json['at_oficio_solicitud_icm']?.toString(),
       plazoEntregaReal: json['plazo_entrega_real'] != null ? int.tryParse(json['plazo_entrega_real'].toString()) : null,
       vigenciaIcm: json['vigencia_icm'],
+      fechaExpEstim: json['fecha_exp_estim']?.toString(),
+      fechaEntregaExp: json['fecha_entrega_exp']?.toString(),
+      fechaPublicacion: json['fecha_publicacion']?.toString(),
+      numeroProcedimientoMsc: json['numero_procedimiento_msc']?.toString(),
     );
   }
 
-  // ✅ NUEVO: Método para crear una copia con campos actualizados (útil para updates)
+  // Método para crear una copia con campos actualizados (útil para updates)
   Proyecto copyWith({
     int? id,
     String? nombre,
@@ -246,6 +256,10 @@ class Proyecto {
     String? atOficioSolicitudIcm,
     int? plazoEntregaReal,
     String? vigenciaIcm,
+    String? fechaExpEstim,
+    String? fechaEntregaExp,
+    String? fechaPublicacion,
+    String? numeroProcedimientoMsc,
   }) {
     return Proyecto(
       id: id ?? this.id,
@@ -294,6 +308,10 @@ class Proyecto {
       atOficioSolicitudIcm: atOficioSolicitudIcm ?? this.atOficioSolicitudIcm,
       plazoEntregaReal: plazoEntregaReal ?? this.plazoEntregaReal,
       vigenciaIcm: vigenciaIcm ?? this.vigenciaIcm,
+      fechaExpEstim: fechaExpEstim ?? this.fechaExpEstim,
+      fechaEntregaExp: fechaEntregaExp ?? this.fechaEntregaExp,
+      fechaPublicacion: fechaPublicacion ?? this.fechaPublicacion,
+      numeroProcedimientoMsc: numeroProcedimientoMsc ?? this.numeroProcedimientoMsc,
     );
   }
 }
