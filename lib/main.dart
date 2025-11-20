@@ -27,7 +27,6 @@ Future<void> _handleNotificationNavigationWithPermissionCheck(int proyectoId) as
   // 1. Obtener el usuario actual de la sesión
   final usuario = await SessionService.getUser();
 
-  // Si no hay sesión, la app ya está (o estará) en LoginScreen.
   if (usuario == null) {
     debugPrint('Notificación recibida sin sesión. Abriendo LoginScreen.');
     return;
@@ -35,38 +34,29 @@ Future<void> _handleNotificationNavigationWithPermissionCheck(int proyectoId) as
 
   Proyecto? proyecto;
   try {
-    // 2. Obtener el proyecto al que apunta la notificación
     proyecto = await ApiService(
-      // Usamos el RPE/Rol del usuario actual para la llamada
       actorRpe: usuario.rpe,
       actorRol: usuario.rol,
     ).getProyectoById(proyectoId);
-
   } catch (e) {
     debugPrint('Error al buscar proyecto $proyectoId desde notificación: $e');
-    // Si el proyecto no existe o falla la red, no hacemos nada.
     return;
   }
 
-  // 3. Verificar Permisos
+  // 2. Verificar Permisos (tu lógica existente)
   bool tienePermiso = false;
   final rol = usuario.rol.toLowerCase();
 
-  // Admins y Viewers pueden ver todos los proyectos
   if (rol == 'admin' || rol == 'viewer') {
     tienePermiso = true;
-  }
-  // Los 'user' solo pueden ver proyectos de su propio departamento
-  else if (rol == 'user') {
+  } else if (rol == 'user') {
     if (usuario.departamentoId == proyecto.departamentoId) {
       tienePermiso = true;
     }
   }
 
-  // 4. Actuar según el permiso
+  // 3. Navegar con TODOS los parámetros requeridos
   if (tienePermiso) {
-    // Si tiene permiso, navegar a la pantalla de detalles
-    // Aseguramos que el navigatorKey esté listo
     if (navigatorKey.currentState == null) {
       await Future.delayed(const Duration(milliseconds: 100));
     }
@@ -74,16 +64,19 @@ Future<void> _handleNotificationNavigationWithPermissionCheck(int proyectoId) as
     navigatorKey.currentState?.push(MaterialPageRoute(
       builder: (_) => ProyectoDetailsScreen(
         proyecto: proyecto!,
-        // Pasamos el contexto del usuario actual a la pantalla
         actorRpe: usuario.rpe,
         actorRol: usuario.rol,
         actorDepartamentoId: usuario.departamentoId,
-        // (Los permisos de edición se calculan dentro de ProyectoDetailsScreen)
+
+        // ✅ PARÁMETROS CRÍTICOS QUE FALTABAN:
+        canEdit: usuario.rol == 'admin' || usuario.rol == 'user', // Ajusta según tu lógica
+        canEditTipoProcedimiento: usuario.departamentoId == 10, // Abastecimientos
+
+        // Si necesitas más control sobre canEdit:
+        // canEdit: _puedeEditarProyecto(usuario, proyecto),
       ),
     ));
   } else {
-    // Si NO tiene permiso, mostrar un mensaje de error
-    // Aseguramos que el navigatorKey y su contexto existan
     if (navigatorKey.currentState == null) {
       await Future.delayed(const Duration(milliseconds: 100));
     }
@@ -98,6 +91,15 @@ Future<void> _handleNotificationNavigationWithPermissionCheck(int proyectoId) as
       );
     }
   }
+}
+
+// ✅ Función auxiliar si necesitas lógica más compleja para canEdit
+bool _puedeEditarProyecto(Usuario usuario, Proyecto proyecto) {
+  if (usuario.rol == 'admin') return true;
+  if (usuario.rol == 'viewer') return false;
+
+  // Usuario normal: puede editar si es de su departamento
+  return usuario.departamentoId == proyecto.departamentoId;
 }
 
 /// Abre la pantalla de detalle a partir de un RemoteMessage (system notification)

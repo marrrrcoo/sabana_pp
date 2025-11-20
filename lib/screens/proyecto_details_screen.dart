@@ -38,6 +38,10 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
   static const int DIAM_DEPT_ID = 9; // <-- alinea con backend
   static const int ABASTECIMIENTOS_ID = 10;
 
+  // ====== NUEVAS VARIABLES DE ESTADO ======
+  bool _showMoreDiam = false;
+  bool _showMoreAbast = false;
+
   late Proyecto _p; // <- copia local y mutable
 
   late String? _observaciones;
@@ -2333,53 +2337,109 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                           _p.atOficioSolicitudIcm ?? 'Aún no registrado'),
                     ],
 
-                    // =================== DATOS DIAM (VISIBLES PARA TODOS) ===================
-                    const SizedBox(height: 12),
-                    const Divider(height: 22),
-                    Text('Datos DIAM',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 20),
-                    _kv(
-                        'No. ICM',
-                        (_p.numeroIcm == null ||
-                                (_p.numeroIcm?.trim().isEmpty ?? true))
-                            ? 'Aún no registrado'
-                            : _p.numeroIcm!),
-                    _kv('Fecha ICM (estimada)', _fmtDdMmYyOrPend(_p.fechaIcm)),
-                    _kv('Importe PMC', _fmtMoneyOrPend(_p.importePmc)),
-                    _kv('Fecha de ICM validada',
-                        _fmtDdMmYyOrPend(_p.fechaEnvioPmc)),
-// CAMPOS para estado 9 - mostrados condicionalmente si existen
-                    if (_p.plazoEntregaReal != null)
-                      _kv('Plazo entrega real (días)',
-                          _p.plazoEntregaReal.toString()),
-                    if (_p.vigenciaIcm != null)
-                      _kv('Vigencia ICM', _fmtDdMmYyOrPend(_p.vigenciaIcm)),
+// ====== MODIFICAR LA SECCIÓN DE DATOS DIAM ======
+// Reemplazar la sección actual de Datos DIAM con:
+    const SizedBox(height: 12),
+    const Divider(height: 22),
+    Row(
+    children: [
+    Text('Datos DIAM',
+    style: Theme.of(context)
+        .textTheme
+        .titleMedium
+        ?.copyWith(fontWeight: FontWeight.w700)),
+    const Spacer(),
+    IconButton(
+    icon: Icon(_showMoreDiam
+    ? Icons.expand_less
+        : Icons.expand_more),
+    onPressed: () {
+    setState(() {
+    _showMoreDiam = !_showMoreDiam;
+    });
+    },
+    ),
+    ],
+    ),
+    const SizedBox(height: 8),
+    _kv('No. ICM',
+    (_p.numeroIcm == null || (_p.numeroIcm?.trim().isEmpty ?? true))
+    ? 'Aún no registrado'
+        : _p.numeroIcm!),
+    _kv('Fecha ICM (estimada)', _fmtDdMmYyOrPend(_p.fechaIcm)),
+    _kv('Importe PMC', _fmtMoneyOrPend(_p.importePmc)),
+    _kv('Fecha de ICM validada', _fmtDdMmYyOrPend(_p.fechaEnvioPmc)),
 
-// =================== DATOS ABASTECIMIENTOS (VISIBLES PARA TODOS) ===================
-                    const SizedBox(height: 12),
-                    const Divider(height: 22),
-                    Text('Datos Abastecimientos',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 20),
-                    _kv('Entrega de expediente a OP', _fmtDdMmYyOrPend(_p.fechaEntregaExp)),
-                    _kv('Fecha de publicación', _fmtDdMmYyOrPend(_p.fechaPublicacion)),
-                    _kv('Número de procedimiento MSC',
-                        _p.numeroProcedimientoMsc ?? 'Aún no registrado'),
-                    _kv('Fecha publicación GAB', _fmtDdMmYyOrPend(_p.fechaPubliGAB)),
-                    _kv('Fecha visita sitio', _fmtDdMmYyOrPend(_p.fechaVisitaSitio)),
-                    _kv('Fecha sesión aclaraciones', _fmtDdMmYyOrPend(_p.fechaSesionAclaraciones)),
-                    _kv('Fecha apertura técnica', _fmtDdMmYyOrPend(_p.fechaAperturaTecnica)),
-                    _kv('Fecha apertura económica', _fmtDdMmYyOrPend(_p.fechaAperturaEconomica)),
-                    _kv('Fecha fallo', _fmtDdMmYyOrPend(_p.fechaFallo)),
-// ========================================================================
-// ========================================================================
+// Campos que se muestran solo cuando _showMoreDiam es true
+    if (_showMoreDiam) ...[
+    if (_p.plazoEntregaReal != null)
+    _kv('Plazo entrega real (días)', _p.plazoEntregaReal.toString()),
+    if (_p.vigenciaIcm != null)
+    _kv('Vigencia ICM', _fmtDdMmYyOrPend(_p.vigenciaIcm)),
+    ],
+
+
+
+// ====== MODIFICAR LA SECCIÓN DE DATOS ABASTECIMIENTOS ======
+// Reemplazar la sección actual de Datos Abastecimientos con:
+    const SizedBox(height: 12),
+    const Divider(height: 22),
+    Row(
+    children: [
+    Text('Datos Abastecimientos',
+    style: Theme.of(context)
+        .textTheme
+        .titleMedium
+        ?.copyWith(fontWeight: FontWeight.w700)),
+    const Spacer(),
+    IconButton(
+    icon: Icon(_showMoreAbast
+    ? Icons.expand_less
+        : Icons.expand_more),
+    onPressed: () {
+    setState(() {
+    _showMoreAbast = !_showMoreAbast;
+    });
+    },
+    ),
+    ],
+    ),
+    const SizedBox(height: 8),
+    _kv('Entrega de expediente a OP', _fmtDdMmYyOrPend(_p.fechaEntregaExp)),
+    _kv('Fecha de publicación', _fmtDdMmYyOrPend(_p.fechaPublicacion)),
+    _kv('Número de procedimiento MSC', _p.numeroProcedimientoMsc ?? 'Aún no registrado'),
+
+// Campos que se muestran solo cuando _showMoreAbast es true
+    if (_showMoreAbast) ...[
+    _kv('Fecha publicación GAB', _fmtDdMmYyOrPend(_p.fechaPubliGAB)),
+    _kv('Fecha visita sitio', _fmtDdMmYyOrPend(_p.fechaVisitaSitio)),
+    _kv('Fecha sesión aclaraciones', _fmtDdMmYyOrPend(_p.fechaSesionAclaraciones)),
+    _kv('Fecha apertura técnica', _fmtDdMmYyOrPend(_p.fechaAperturaTecnica)),
+    _kv('Fecha apertura económica', _fmtDdMmYyOrPend(_p.fechaAperturaEconomica)),
+    _kv('Fecha fallo', _fmtDdMmYyOrPend(_p.fechaFallo)),
+    ],
+
+// Botón "Mostrar más/menos" para Abastecimientos (solo si hay campos adicionales)
+    if (_p.fechaPubliGAB != null ||
+    _p.fechaVisitaSitio != null ||
+    _p.fechaSesionAclaraciones != null ||
+    _p.fechaAperturaTecnica != null ||
+    _p.fechaAperturaEconomica != null ||
+    _p.fechaFallo != null)
+    Align(
+    alignment: Alignment.centerRight,
+    child: TextButton.icon(
+    onPressed: () {
+    setState(() {
+    _showMoreAbast = !_showMoreAbast;
+    });
+    },
+    icon: Icon(_showMoreAbast
+    ? Icons.expand_less
+        : Icons.expand_more),
+    label: Text(_showMoreAbast ? 'Mostrar menos' : 'Mostrar más'),
+    ),
+    ),
                   ],
 
                 ),
@@ -3003,7 +3063,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                   );
                 }
               },
-              child: const Text('REINICIAR A ESTADO 12'),
+              child: const Text('VOLVER A PUBLICAR'),
             ),
           ),
       ],
