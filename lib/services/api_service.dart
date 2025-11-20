@@ -576,6 +576,16 @@ class ApiService {
     String? numeroSolcon,
     String? fechaPublicacion,
     String? numeroProcedimientoMSC,
+    String? fechaPubliGAB,
+    String? fechaVisitaSitio,
+    String? fechaSesionAclaraciones,
+    String? fechaAperturaTecnica,
+    String? fechaAperturaEconomica,
+    String? fechaFallo,
+    String? numeroContrato,
+    String? fechaFormalizacionContrato,
+    String? fechaCancelacion,
+    String? fechaDesierto,
   }) async {
     final url = Uri.parse('$baseUrl/proyectos/$proyectoId/estado');
     final body = {
@@ -596,6 +606,17 @@ class ApiService {
       if (numeroSolcon != null && numeroSolcon.trim().isNotEmpty) 'numero_solcon': numeroSolcon.trim(),
       if (fechaPublicacion != null) 'fecha_publicacion': fechaPublicacion,
       if (numeroProcedimientoMSC != null) 'numero_procedimiento_msc': numeroProcedimientoMSC,
+      // NUEVOS CAMPOS para estados 15-20
+      if (fechaPubliGAB != null) 'fecha_publi_GAB': fechaPubliGAB,
+      if (fechaVisitaSitio != null) 'fecha_visita_sitio': fechaVisitaSitio,
+      if (fechaSesionAclaraciones != null) 'fecha_sesion_aclaraciones': fechaSesionAclaraciones,
+      if (fechaAperturaTecnica != null) 'fecha_apertura_tecnica': fechaAperturaTecnica,
+      if (fechaAperturaEconomica != null) 'fecha_apertura_economica': fechaAperturaEconomica,
+      if (fechaFallo != null) 'fecha_fallo': fechaFallo,
+      if (numeroContrato != null) 'numero_contrato': numeroContrato,
+      if (fechaFormalizacionContrato != null) 'fecha_formalizacion_contrato': fechaFormalizacionContrato,
+      if (fechaCancelacion != null) 'fecha_cancelacion': fechaCancelacion,
+      if (fechaDesierto != null) 'fecha_desierto': fechaDesierto,
     };
 
     final res = await http.put(url, headers: _authJsonHeaders, body: jsonEncode(body));

@@ -286,6 +286,18 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     // CAMPOS para estado 14
     String? fechaPublicacion;
     String? numeroProcedimientoMSC;
+    // CAMPOS para estados 15-20
+    String? fechaPubliGAB;
+    String? fechaVisitaSitio;
+    String? fechaSesionAclaraciones;
+    String? fechaAperturaTecnica;
+    String? fechaAperturaEconomica;
+    String? fechaFallo;
+    //21-24
+    String? numeroContrato;
+    String? fechaFormalizacionContrato;
+    String? fechaCancelacion;
+    String? fechaDesierto;
 
     if (retroceso) {
       motivo = await _pedirMotivo();
@@ -350,31 +362,116 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         observacionesEstado10 = datosEstado10['observaciones'];
         observaciones = observacionesEstado10;
       }
-    }
+
+
+
+      // Estado 11 - Entrega de expediente a OP (automático)
+      final toEstado11 = targetId == 11;
+      if ((isAbastUser || isAdmin) && toEstado11) {
+        // No necesita datos adicionales, se guarda automáticamente la fecha
+      }
 
 // Estado 13 - Comentario obligatorio
-    final toEstado13 = targetId == 13;
-    if ((isAbastUser || isAdmin) && toEstado13) {
-      final obs = await _pedirObservacionesObligatoriasEstado13();
-      if (obs == null) return; // canceló
-      observaciones = obs;
-    }
+      final toEstado13 = targetId == 13;
+      if ((isAbastUser || isAdmin) && toEstado13) {
+        final obs = await _pedirObservacionesObligatoriasEstado13();
+        if (obs == null) return; // canceló
+        observaciones = obs;
+      }
 
 // Estado 14 - Fecha de publicación y número de procedimiento MSC
-    final toEstado14 = targetId == 14;
-    if ((isAbastUser || isAdmin) && toEstado14) {
-      final datosEstado14 = await _pedirDatosEstado14();
-      if (datosEstado14 == null) return; // canceló
+      final toEstado14 = targetId == 14;
+      if ((isAbastUser || isAdmin) && toEstado14) {
+        final datosEstado14 = await _pedirDatosEstado14();
+        if (datosEstado14 == null) return; // canceló
 
-      // Estos datos se enviarán al backend
-      fechaPublicacion = datosEstado14['fecha_publicacion'];
-      numeroProcedimientoMSC = datosEstado14['numero_procedimiento_msc'];
-    }
+        // Estos datos se enviarán al backend
+        fechaPublicacion = datosEstado14['fecha_publicacion'];
+        numeroProcedimientoMSC = datosEstado14['numero_procedimiento_msc'];
+      }
+      // Estado 15 - Publicación de Contratación GAB
+      final toEstado15 = targetId == 15;
+      if ((isAbastUser || isAdmin) && toEstado15) {
+        final fecha = await _pedirFechaEstado15();
+        if (fecha == null) return; // canceló
+        fechaPubliGAB = fecha;
+      }
 
-    // Estado 11 - Entrega de expediente a OP (automático)
-    final toEstado11 = targetId == 11;
-    if ((isAbastUser || isAdmin) && toEstado11) {
-      // No necesita datos adicionales, se guarda automáticamente la fecha
+      // Estado 16 - Visita al sitio
+      final toEstado16 = targetId == 16;
+      if ((isAbastUser || isAdmin) && toEstado16) {
+        final fecha = await _pedirFechaEstado16();
+        if (fecha == null) return;
+        fechaVisitaSitio = fecha;
+      }
+
+      // Estado 17 - Sesión de aclaraciones
+      final toEstado17 = targetId == 17;
+      if ((isAbastUser || isAdmin) && toEstado17) {
+        final fecha = await _pedirFechaEstado17();
+        if (fecha == null) return;
+        fechaSesionAclaraciones = fecha;
+      }
+
+      // Estado 18 - Apertura técnica
+      final toEstado18 = targetId == 18;
+      if ((isAbastUser || isAdmin) && toEstado18) {
+        final fecha = await _pedirFechaEstado18();
+        if (fecha == null) return;
+        fechaAperturaTecnica = fecha;
+      }
+
+      // Estado 19 - Apertura económica
+      final toEstado19 = targetId == 19;
+      if ((isAbastUser || isAdmin) && toEstado19) {
+        final fecha = await _pedirFechaEstado19();
+        if (fecha == null) return;
+        fechaAperturaEconomica = fecha;
+      }
+
+      // Estado 20 - Fallo
+      final toEstado20 = targetId == 20;
+      if ((isAbastUser || isAdmin) && toEstado20) {
+        final fecha = await _pedirFechaEstado20();
+        if (fecha == null) return;
+        fechaFallo = fecha;
+      }
+
+      // Estado 21 - Número de contrato
+      final toEstado21 = targetId == 21;
+      if ((isAbastUser || isAdmin) && toEstado21) {
+        final numero = await _pedirNumeroContrato();
+        if (numero == null) return;
+        numeroContrato = numero;
+      }
+
+      // Estado 22 - Fecha de firma de contrato
+      final toEstado22 = targetId == 22;
+      if ((isAbastUser || isAdmin) && toEstado22) {
+        final fecha = await _pedirFechaFirmaContrato();
+        if (fecha == null) return;
+        fechaFormalizacionContrato = fecha;
+      }
+
+      // Estado 23 - Cancelación: fecha y observaciones
+      final toEstado23 = targetId == 23;
+      if ((isAbastUser || isAdmin) && toEstado23) {
+        final datos = await _pedirDatosEstado23();
+        if (datos == null) return;
+        fechaCancelacion = datos['fecha_cancelacion'];
+        observaciones = datos['observaciones'];
+      }
+
+      // Estado 24 - Desierto: fecha y observaciones
+      final toEstado24 = targetId == 24;
+      if ((isAbastUser || isAdmin) && toEstado24) {
+        final datos = await _pedirDatosEstado24();
+        if (datos == null) return;
+        fechaDesierto = datos['fecha_desierto'];
+        observaciones = datos['observaciones'];
+      }
+
+
     }
 
     try {
@@ -393,6 +490,16 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         numeroSolcon: numeroSolcon,
         fechaPublicacion: fechaPublicacion,
         numeroProcedimientoMSC: numeroProcedimientoMSC,
+        fechaPubliGAB: fechaPubliGAB,
+        fechaVisitaSitio: fechaVisitaSitio,
+        fechaSesionAclaraciones: fechaSesionAclaraciones,
+        fechaAperturaTecnica: fechaAperturaTecnica,
+        fechaAperturaEconomica: fechaAperturaEconomica,
+        fechaFallo: fechaFallo,
+        numeroContrato: numeroContrato,
+        fechaFormalizacionContrato: fechaFormalizacionContrato,
+        fechaCancelacion: fechaCancelacion,
+        fechaDesierto: fechaDesierto,
       );
 
       setState(() {
@@ -751,6 +858,451 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                   });
                 },
                 child: const Text('GUARDAR'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  // Diálogos para estados 15-20
+  Future<String?> _pedirFechaEstado15() async {
+    DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Fecha de publicación GAB',
+      confirmText: 'SELECCIONAR',
+      cancelText: 'CANCELAR',
+      locale: const Locale('es', 'MX'),
+    );
+    if (pickedDate == null) return null;
+    return DateFormat('yyyy-MM-dd').format(pickedDate);
+  }
+
+  Future<String?> _pedirFechaEstado16() async {
+    DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Fecha de visita al sitio',
+      confirmText: 'SELECCIONAR',
+      cancelText: 'CANCELAR',
+      locale: const Locale('es', 'MX'),
+    );
+    if (pickedDate == null) return null;
+    return DateFormat('yyyy-MM-dd').format(pickedDate);
+  }
+
+  Future<String?> _pedirFechaEstado17() async {
+    DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Fecha de sesión de aclaraciones',
+      confirmText: 'SELECCIONAR',
+      cancelText: 'CANCELAR',
+      locale: const Locale('es', 'MX'),
+    );
+    if (pickedDate == null) return null;
+    return DateFormat('yyyy-MM-dd').format(pickedDate);
+  }
+
+  Future<String?> _pedirFechaEstado18() async {
+    DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Fecha de apertura técnica',
+      confirmText: 'SELECCIONAR',
+      cancelText: 'CANCELAR',
+      locale: const Locale('es', 'MX'),
+    );
+    if (pickedDate == null) return null;
+    return DateFormat('yyyy-MM-dd').format(pickedDate);
+  }
+
+  Future<String?> _pedirFechaEstado19() async {
+    DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Fecha de apertura económica',
+      confirmText: 'SELECCIONAR',
+      cancelText: 'CANCELAR',
+      locale: const Locale('es', 'MX'),
+    );
+    if (pickedDate == null) return null;
+    return DateFormat('yyyy-MM-dd').format(pickedDate);
+  }
+
+  Future<String?> _pedirFechaEstado20() async {
+    DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Fecha de fallo',
+      confirmText: 'SELECCIONAR',
+      cancelText: 'CANCELAR',
+      locale: const Locale('es', 'MX'),
+    );
+    if (pickedDate == null) return null;
+    return DateFormat('yyyy-MM-dd').format(pickedDate);
+  }
+
+  // Diálogo para estado 21 - Número de contrato
+  Future<String?> _pedirNumeroContrato() async {
+    final ctrl = TextEditingController();
+    String? err;
+
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setS) {
+          return AlertDialog(
+            title: const Text('Número de contrato'),
+            content: TextField(
+              controller: ctrl,
+              decoration: InputDecoration(
+                labelText: 'Número de contrato',
+                hintText: 'Ej. CONTRATO-2024-001',
+                errorText: err,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('CANCELAR'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final texto = ctrl.text.trim();
+                  if (texto.isEmpty) {
+                    setS(() => err = 'Ingresa el número de contrato');
+                    return;
+                  }
+                  Navigator.pop(ctx, texto);
+                },
+                child: const Text('GUARDAR'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+// Diálogo para estado 22 - Fecha de firma de contrato
+  Future<String?> _pedirFechaFirmaContrato() async {
+    DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Fecha de firma de contrato',
+      confirmText: 'SELECCIONAR',
+      cancelText: 'CANCELAR',
+      locale: const Locale('es', 'MX'),
+    );
+    if (pickedDate == null) return null;
+    return DateFormat('yyyy-MM-dd').format(pickedDate);
+  }
+
+// Diálogo para estado 23 - Fecha de cancelación y observaciones
+  Future<Map<String, String>?> _pedirDatosEstado23() async {
+    final observacionesCtrl = TextEditingController();
+    DateTime? pickedFechaCancelacion;
+    String? errObservaciones;
+    String? errFecha;
+
+    return showDialog<Map<String, String>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setS) {
+          Future<void> pickFechaCancelacion() async {
+            final now = DateTime.now();
+            final d = await showDatePicker(
+              context: ctx,
+              initialDate: now,
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2100),
+              helpText: 'Fecha de cancelación',
+              confirmText: 'SELECCIONAR',
+              cancelText: 'CANCELAR',
+              locale: const Locale('es', 'MX'),
+            );
+            if (d != null) setS(() => pickedFechaCancelacion = d);
+          }
+
+          String _fmt(DateTime? d) =>
+              d == null ? 'Selecciona fecha' : DateFormat('dd/MM/yy').format(d);
+
+          return AlertDialog(
+            title: const Text('Datos para cancelación'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: observacionesCtrl,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    labelText: 'Observaciones (obligatorias)',
+                    hintText: 'Ingresa las observaciones requeridas...',
+                    errorText: errObservaciones,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: pickFechaCancelacion,
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Fecha de cancelación',
+                      errorText: errFecha,
+                      border: const OutlineInputBorder(),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(_fmt(pickedFechaCancelacion)),
+                        const Icon(Icons.event),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('CANCELAR'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final observaciones = observacionesCtrl.text.trim();
+                  if (observaciones.isEmpty) {
+                    setS(() => errObservaciones = 'Las observaciones son obligatorias');
+                    return;
+                  }
+                  if (pickedFechaCancelacion == null) {
+                    setS(() => errFecha = 'Selecciona la fecha de cancelación');
+                    return;
+                  }
+
+                  final fechaISO = DateFormat('yyyy-MM-dd').format(pickedFechaCancelacion!);
+                  Navigator.pop(ctx, {
+                    'fecha_cancelacion': fechaISO,
+                    'observaciones': observaciones,
+                  });
+                },
+                child: const Text('GUARDAR'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+// Diálogo para estado 24 - Fecha de desierto y observaciones
+  Future<Map<String, String>?> _pedirDatosEstado24() async {
+    final observacionesCtrl = TextEditingController();
+    DateTime? pickedFechaDesierto;
+    String? errObservaciones;
+    String? errFecha;
+
+    return showDialog<Map<String, String>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setS) {
+          Future<void> pickFechaDesierto() async {
+            final now = DateTime.now();
+            final d = await showDatePicker(
+              context: ctx,
+              initialDate: now,
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2100),
+              helpText: 'Fecha de desierto',
+              confirmText: 'SELECCIONAR',
+              cancelText: 'CANCELAR',
+              locale: const Locale('es', 'MX'),
+            );
+            if (d != null) setS(() => pickedFechaDesierto = d);
+          }
+
+          String _fmt(DateTime? d) =>
+              d == null ? 'Selecciona fecha' : DateFormat('dd/MM/yy').format(d);
+
+          return AlertDialog(
+            title: const Text('Datos para desierto'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: observacionesCtrl,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    labelText: 'Observaciones (obligatorias)',
+                    hintText: 'Ingresa las observaciones requeridas...',
+                    errorText: errObservaciones,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: pickFechaDesierto,
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Fecha de desierto',
+                      errorText: errFecha,
+                      border: const OutlineInputBorder(),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(_fmt(pickedFechaDesierto)),
+                        const Icon(Icons.event),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('CANCELAR'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final observaciones = observacionesCtrl.text.trim();
+                  if (observaciones.isEmpty) {
+                    setS(() => errObservaciones = 'Las observaciones son obligatorias');
+                    return;
+                  }
+                  if (pickedFechaDesierto == null) {
+                    setS(() => errFecha = 'Selecciona la fecha de desierto');
+                    return;
+                  }
+
+                  final fechaISO = DateFormat('yyyy-MM-dd').format(pickedFechaDesierto!);
+                  Navigator.pop(ctx, {
+                    'fecha_desierto': fechaISO,
+                    'observaciones': observaciones,
+                  });
+                },
+                child: const Text('GUARDAR'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+// Diálogo para reiniciar al estado 12 - Número de procedimiento MSC y observaciones
+  Future<Map<String, String>?> _pedirReinicioEstado12() async {
+    final observacionesCtrl = TextEditingController();
+    String? errObservaciones;
+
+    // Tomar automáticamente el número de procedimiento MSC actual del proyecto
+    final numeroProcedimientoActual = _p.numeroProcedimientoMsc ?? '';
+
+    return showDialog<Map<String, String>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setS) {
+          return AlertDialog(
+            title: const Text('Reiniciar a estado 12'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Mostrar el número de procedimiento MSC actual (solo lectura)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Número de procedimiento MSC actual:',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        numeroProcedimientoActual.isNotEmpty
+                            ? numeroProcedimientoActual
+                            : 'No hay número registrado',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: observacionesCtrl,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    labelText: 'Observaciones (obligatorias)',
+                    hintText: 'Ingresa las observaciones requeridas para el reinicio...',
+                    errorText: errObservaciones,
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'El número de procedimiento MSC se incluirá automáticamente en los comentarios',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('CANCELAR'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final observaciones = observacionesCtrl.text.trim();
+                  if (observaciones.isEmpty) {
+                    setS(() => errObservaciones = 'Las observaciones son obligatorias');
+                    return;
+                  }
+
+                  // Combinar automáticamente el número MSC con las observaciones
+                  final observacionesCombinadas = numeroProcedimientoActual.isNotEmpty
+                      ? '$numeroProcedimientoActual\n$observaciones'
+                      : observaciones;
+
+                  Navigator.pop(ctx, {
+                    'numero_procedimiento_msc': numeroProcedimientoActual,
+                    'observaciones': observacionesCombinadas,
+                  });
+                },
+                child: const Text('REINICIAR'),
               ),
             ],
           );
@@ -1818,6 +2370,12 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                     _kv('Fecha de publicación', _fmtDdMmYyOrPend(_p.fechaPublicacion)),
                     _kv('Número de procedimiento MSC',
                         _p.numeroProcedimientoMsc ?? 'Aún no registrado'),
+                    _kv('Fecha publicación GAB', _fmtDdMmYyOrPend(_p.fechaPubliGAB)),
+                    _kv('Fecha visita sitio', _fmtDdMmYyOrPend(_p.fechaVisitaSitio)),
+                    _kv('Fecha sesión aclaraciones', _fmtDdMmYyOrPend(_p.fechaSesionAclaraciones)),
+                    _kv('Fecha apertura técnica', _fmtDdMmYyOrPend(_p.fechaAperturaTecnica)),
+                    _kv('Fecha apertura económica', _fmtDdMmYyOrPend(_p.fechaAperturaEconomica)),
+                    _kv('Fecha fallo', _fmtDdMmYyOrPend(_p.fechaFallo)),
 // ========================================================================
 // ========================================================================
                   ],
@@ -2400,6 +2958,45 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                 : null, // <- deshabilitado si no tiene permiso
           );
         }),
+        // Botón de reinicio solo para estado 24 activo
+        if (estados.contains(24) && _estadoIdActual == 24)
+          Padding(
+            padding: const EdgeInsets.only(top: 12, left: 40),
+            child: OutlinedButton(
+              onPressed: () async {
+                final datosReinicio = await _pedirReinicioEstado12();
+                if (datosReinicio == null) return;
+
+                try {
+                  final resp = await _api.actualizarEstado(
+                    proyectoId: _p.id,
+                    estadoId: 12, // Reiniciar al estado 12
+                    observaciones: datosReinicio['observaciones'],
+                    numeroProcedimientoMSC: datosReinicio['numero_procedimiento_msc'],
+                  );
+
+                  setState(() {
+                    _estadoIdActual = 12;
+                    _estadoNombre = (resp['estado_nombre'] ?? _estadoNombre)?.toString();
+                    _etapaNombre = (resp['etapa_nombre'] ?? _etapaNombre)?.toString();
+                  });
+
+                  await _refreshProyecto();
+
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Proyecto reiniciado al estado 12')),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error al reiniciar: $e')),
+                  );
+                }
+              },
+              child: const Text('REINICIAR A ESTADO 12'),
+            ),
+          ),
       ],
     );
   }

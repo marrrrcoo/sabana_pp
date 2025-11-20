@@ -66,6 +66,13 @@ class Proyecto {
   final String? fechaPublicacion;
   final String? numeroProcedimientoMsc;
 
+  final String? fechaPubliGAB;
+  final String? fechaVisitaSitio;
+  final String? fechaSesionAclaraciones;
+
+  final String? fechaCancelacion;
+  final String? fechaDesierto;
+
   Proyecto({
     required this.id,
     required this.nombre,
@@ -117,6 +124,11 @@ class Proyecto {
     this.fechaEntregaExp,
     this.fechaPublicacion,
     this.numeroProcedimientoMsc,
+    this.fechaPubliGAB,
+    this.fechaVisitaSitio,
+    this.fechaSesionAclaraciones,
+    this.fechaCancelacion,
+    this.fechaDesierto,
   });
 
   bool get vencio {
@@ -205,6 +217,11 @@ class Proyecto {
       fechaEntregaExp: json['fecha_entrega_exp']?.toString(),
       fechaPublicacion: json['fecha_publicacion']?.toString(),
       numeroProcedimientoMsc: json['numero_procedimiento_msc']?.toString(),
+      fechaPubliGAB: json['fecha_publi_GAB']?.toString(),
+      fechaVisitaSitio: json['fecha_visita_sitio']?.toString(),
+      fechaSesionAclaraciones: json['fecha_sesion_aclaraciones']?.toString(),
+      fechaCancelacion: json['fecha_cancelacion']?.toString(),
+      fechaDesierto: json['fecha_desierto']?.toString(),
     );
   }
 
@@ -260,6 +277,11 @@ class Proyecto {
     String? fechaEntregaExp,
     String? fechaPublicacion,
     String? numeroProcedimientoMsc,
+    String? fechaPubliGAB,
+    String? fechaVisitaSitio,
+    String? fechaSesionAclaraciones,
+    String? fechaCancelacion,
+    String? fechaDesierto,
   }) {
     return Proyecto(
       id: id ?? this.id,
@@ -312,6 +334,11 @@ class Proyecto {
       fechaEntregaExp: fechaEntregaExp ?? this.fechaEntregaExp,
       fechaPublicacion: fechaPublicacion ?? this.fechaPublicacion,
       numeroProcedimientoMsc: numeroProcedimientoMsc ?? this.numeroProcedimientoMsc,
+      fechaPubliGAB: fechaPubliGAB ?? this.fechaPubliGAB,
+      fechaVisitaSitio: fechaVisitaSitio ?? this.fechaVisitaSitio,
+      fechaSesionAclaraciones: fechaSesionAclaraciones ?? this.fechaSesionAclaraciones,
+      fechaCancelacion: fechaCancelacion ?? this.fechaCancelacion,
+      fechaDesierto: fechaDesierto ?? this.fechaDesierto,
     );
   }
 }
