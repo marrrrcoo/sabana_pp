@@ -113,6 +113,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
 
   bool get isAreaTecnicaUser => !(isDiamUser || isAbastUser) && !isAdmin;
 
+  bool get puedeEditarFechaExpEstim => isAdmin || isAreaTecnicaUser;
+
   late final ApiService _api;
   DateTime? _fechaExpEstim;
 
@@ -2564,8 +2566,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                     ),
 
                     // Campo de fecha de expediente estimado - solo visible cuando el estado 10 está activo
-                    if (_estadoIdActual == 10 ||
-                        _solconStates.contains(_estadoIdActual))
+                    if (_estadoIdActual == 10 || _solconStates.contains(_estadoIdActual))
                       Padding(
                         padding: const EdgeInsets.only(top: 12, left: 40),
                         child: Column(
@@ -2574,64 +2575,72 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                             Text(
                               'Fecha de entrega de expediente (estimado)',
                               style: TextStyle(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
                             const SizedBox(height: 8),
+                            // NUEVO: InkWell condicional basado en permisos
                             InkWell(
-                              onTap: _seleccionarFechaExpEstim,
+                              onTap: puedeEditarFechaExpEstim ? _seleccionarFechaExpEstim : null,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 10),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                 decoration: BoxDecoration(
                                   border: Border.all(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .outline),
+                                    color: puedeEditarFechaExpEstim
+                                        ? Theme.of(context).colorScheme.outline
+                                        : Colors.grey.withOpacity(0.5),
+                                  ),
                                   borderRadius: BorderRadius.circular(8),
+                                  color: puedeEditarFechaExpEstim
+                                      ? Colors.transparent
+                                      : Colors.grey.withOpacity(0.1),
                                 ),
                                 child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
                                       _fechaExpEstim != null
-                                          ? DateFormat('dd/MM/yyyy')
-                                              .format(_fechaExpEstim!)
+                                          ? DateFormat('dd/MM/yyyy').format(_fechaExpEstim!)
                                           : 'Seleccionar fecha',
                                       style: TextStyle(
                                         color: _fechaExpEstim != null
-                                            ? Theme.of(context)
-                                                .colorScheme
-                                                .onSurface
-                                            : Theme.of(context)
-                                                .colorScheme
-                                                .onSurfaceVariant,
+                                            ? Theme.of(context).colorScheme.onSurface
+                                            : (puedeEditarFechaExpEstim
+                                            ? Theme.of(context).colorScheme.onSurfaceVariant
+                                            : Colors.grey),
                                       ),
                                     ),
-                                    Icon(Icons.calendar_today,
-                                        size: 20,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary),
+                                    Icon(
+                                      Icons.calendar_today,
+                                      size: 20,
+                                      color: puedeEditarFechaExpEstim
+                                          ? Theme.of(context).colorScheme.primary
+                                          : Colors.grey,
+                                    ),
                                   ],
                                 ),
                               ),
                             ),
                             const SizedBox(height: 8),
-                            Text(
-                              'Se enviará una notificación cuando esté por vencer',
-                              style: TextStyle(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                                fontSize: 12,
+                            // NUEVO: Mensaje informativo cuando no tiene permisos
+                            if (!puedeEditarFechaExpEstim)
+                              Text(
+                                'Solo las áreas técnicas pueden editar esta fecha',
+                                style: TextStyle(
+                                  color: Colors.orange.shade700,
+                                  fontSize: 12,
+                                ),
+                              )
+                            else
+                              Text(
+                                'Se enviará una notificación cuando esté por vencer',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  fontSize: 12,
+                                ),
                               ),
-                            ),
                           ],
                         ),
                       ),
