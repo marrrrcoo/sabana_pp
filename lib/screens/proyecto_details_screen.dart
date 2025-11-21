@@ -97,7 +97,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
       : const [5, 6, 9]; // <-- INCLUIR ESTADO 9
   List<int> get _solconStates => [10];
 
-  List<int> get _abastecimientosStates => [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
+  List<int> get _abastecimientosStates =>
+      [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
 
   List<int> get _orderedStates => [
         ..._techStates,
@@ -122,6 +123,96 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
   late final ApiService _api;
   DateTime? _fechaExpEstim;
 
+  // Variable para almacenar qué estados deben verse marcados visualmente
+  Set<int> _estadosMarcadosVisualmente = {};
+
+  // Función para calcular la ruta visual basada en el historial
+  Future<void> _calcularRutaVisual() async {
+    try {
+      // 1. Obtener historial completo
+      final history = await _api.getHistorialEstados(_p.id);
+      // 2. Ordenar del más antiguo al más nuevo
+      final historyAsc = history.reversed.toList();
+
+      // Empezamos siempre con el estado 1 marcado
+      final Set<int> marks = {1};
+
+      // Variable para rastrear el último estado lineal "válido" conocido en la línea de tiempo
+      int ultimoLinealConocido = 1;
+
+      for (var h in historyAsc) {
+        final nuevo = h['estado_nuevo_id'] as int;
+        final anterior = h['estado_anterior_id'] as int?;
+
+        // CASO A: Estados Lineales (1 al 22)
+        if (nuevo <= 22) {
+          // Si nos movemos a un estado cancelado/desierto, lo quitamos del mapa
+          marks.remove(23);
+          marks.remove(24);
+
+          if (nuevo > ultimoLinealConocido) {
+            // AVANCE (sea paso a paso o salto)
+            // Simplemente agregamos el nuevo estado.
+            // NO borramos los intermedios anteriores.
+            marks.add(nuevo);
+            ultimoLinealConocido = nuevo;
+          } else if (nuevo < ultimoLinealConocido) {
+            // RETROCESO EXPLÍCITO
+            // Aquí sí limpiamos: Si regresamos del 13 al 12, borramos el 13.
+            // Borramos todo lo que sea estrictamente mayor al nuevo estado
+            marks.removeWhere((s) => s > nuevo && s <= 22);
+            ultimoLinealConocido = nuevo;
+          } else {
+            // Mismo estado (raro, pero posible), aseguramos que esté marcado
+            marks.add(nuevo);
+          }
+        }
+        // CASO B: Estados Finales (23 Cancelado, 24 Desierto)
+        else {
+          // Agregamos la marca especial
+          marks.add(nuevo);
+
+          // Exclusividad entre 23 y 24
+          if (nuevo == 23) marks.remove(24);
+          if (nuevo == 24) marks.remove(23);
+
+          // NOTA: No actualizamos 'ultimoLinealConocido' ni borramos estados <= 22.
+          // Esto mantiene visibles los checks verdes anteriores.
+        }
+      }
+
+      // 3. Sincronización final con el estado actual real
+      // (Esto corrige cualquier desfase si la API del historial tardó en actualizarse)
+      if (_p.estadoId != null) {
+        final actual = _p.estadoId!;
+
+        if (actual <= 22) {
+          // Si el actual es lineal, aseguramos que 23/24 estén fuera
+          marks.remove(23);
+          marks.remove(24);
+
+          // Si el estado actual es menor a lo que tenemos marcado visualmente,
+          // significa que hubo un retroceso reciente. Limpiamos excedentes.
+          marks.removeWhere((s) => s > actual && s <= 22);
+          marks.add(actual);
+        } else {
+          // Si es 23 o 24, lo agregamos y quitamos el contrario
+          marks.add(actual);
+          if (actual == 23) marks.remove(24);
+          if (actual == 24) marks.remove(23);
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _estadosMarcadosVisualmente = marks;
+        });
+      }
+    } catch (e) {
+      print('Error calculando ruta visual: $e');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -140,6 +231,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
     _api = ApiService(actorRpe: widget.actorRpe, actorRol: widget.actorRol);
 
     _cargarCatalogoEstados(); // llena nombres + detecta id actual
+
+    _calcularRutaVisual();
   }
 
   // ====== Estados helpers UI ======
@@ -369,8 +462,6 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         observaciones = observacionesEstado10;
       }
 
-
-
       // Estado 11 - Entrega de expediente a OP (automático)
       final toEstado11 = targetId == 11;
       if ((isAbastUser || isAdmin) && toEstado11) {
@@ -398,9 +489,10 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
       // Estado 15 - Publicación de Contratación GAB
       final toEstado15 = targetId == 15;
       if ((isAbastUser || isAdmin) && toEstado15) {
-        final fecha = await _pedirFechaEstado15();
-        if (fecha == null) return; // canceló
-        fechaPubliGAB = fecha;
+        final datosEstado15 = await _pedirDatosEstado15();
+        if (datosEstado15 == null) return; // canceló
+        fechaPubliGAB = datosEstado15['fecha_publi_GAB'];
+        numeroProcedimientoMSC = datosEstado15['numero_procedimiento_msc'];
       }
 
       // Estado 16 - Visita al sitio
@@ -476,8 +568,6 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         fechaDesierto = datos['fecha_desierto'];
         observaciones = datos['observaciones'];
       }
-
-
     }
 
     try {
@@ -561,10 +651,10 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         }
       }
 
-
-
       // Refrescar objeto del proyecto para ver datos actualizados
       await _refreshProyecto();
+
+      await _calcularRutaVisual();
 
       if (!mounted) return;
       final shown =
@@ -873,19 +963,101 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
   }
 
   // Diálogos para estados 15-20
-  Future<String?> _pedirFechaEstado15() async {
-    DateTime? pickedDate = await showDatePicker(
+  // Diálogo para estado 15 - Fecha GAB y número de procedimiento MSC
+  Future<Map<String, String>?> _pedirDatosEstado15() async {
+    final procedimientoCtrl = TextEditingController();
+    DateTime? pickedFecha;
+    String? errProcedimiento;
+    String? errFecha;
+
+    return showDialog<Map<String, String>>(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-      helpText: 'Fecha de publicación GAB',
-      confirmText: 'SELECCIONAR',
-      cancelText: 'CANCELAR',
-      locale: const Locale('es', 'MX'),
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setS) {
+          Future<void> pickFecha() async {
+            final now = DateTime.now();
+            final d = await showDatePicker(
+              context: ctx,
+              initialDate: now,
+              firstDate: DateTime(now.year - 1, 1, 1),
+              lastDate: DateTime(now.year + 2, 12, 31),
+              helpText: 'Fecha de publicación GAB',
+              confirmText: 'SELECCIONAR',
+              cancelText: 'CANCELAR',
+              locale: const Locale('es', 'MX'),
+            );
+            if (d != null) setS(() => pickedFecha = d);
+          }
+
+          String _fmt(DateTime? d) =>
+              d == null ? 'Selecciona fecha' : DateFormat('dd/MM/yy').format(d);
+
+          return AlertDialog(
+            title: const Text('Datos para publicación GAB'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: procedimientoCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Número de procedimiento MSC',
+                    hintText: 'Ej. MSC-GAB-2024-001',
+                    errorText: errProcedimiento,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: pickFecha,
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Fecha de publicación GAB',
+                      errorText: errFecha,
+                      border: const OutlineInputBorder(),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(_fmt(pickedFecha)),
+                        const Icon(Icons.event),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('CANCELAR'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final procedimiento = procedimientoCtrl.text.trim();
+                  if (procedimiento.isEmpty) {
+                    setS(() => errProcedimiento =
+                        'Ingresa el número de procedimiento');
+                    return;
+                  }
+                  if (pickedFecha == null) {
+                    setS(() => errFecha = 'Selecciona la fecha GAB');
+                    return;
+                  }
+
+                  final fechaISO =
+                      DateFormat('yyyy-MM-dd').format(pickedFecha!);
+                  Navigator.pop(ctx, {
+                    'fecha_publi_GAB': fechaISO,
+                    'numero_procedimiento_msc': procedimiento,
+                  });
+                },
+                child: const Text('GUARDAR'),
+              ),
+            ],
+          );
+        });
+      },
     );
-    if (pickedDate == null) return null;
-    return DateFormat('yyyy-MM-dd').format(pickedDate);
   }
 
   Future<String?> _pedirFechaEstado16() async {
@@ -1095,7 +1267,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                 onPressed: () {
                   final observaciones = observacionesCtrl.text.trim();
                   if (observaciones.isEmpty) {
-                    setS(() => errObservaciones = 'Las observaciones son obligatorias');
+                    setS(() => errObservaciones =
+                        'Las observaciones son obligatorias');
                     return;
                   }
                   if (pickedFechaCancelacion == null) {
@@ -1103,7 +1276,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                     return;
                   }
 
-                  final fechaISO = DateFormat('yyyy-MM-dd').format(pickedFechaCancelacion!);
+                  final fechaISO =
+                      DateFormat('yyyy-MM-dd').format(pickedFechaCancelacion!);
                   Navigator.pop(ctx, {
                     'fecha_cancelacion': fechaISO,
                     'observaciones': observaciones,
@@ -1191,7 +1365,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                 onPressed: () {
                   final observaciones = observacionesCtrl.text.trim();
                   if (observaciones.isEmpty) {
-                    setS(() => errObservaciones = 'Las observaciones son obligatorias');
+                    setS(() => errObservaciones =
+                        'Las observaciones son obligatorias');
                     return;
                   }
                   if (pickedFechaDesierto == null) {
@@ -1199,7 +1374,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                     return;
                   }
 
-                  final fechaISO = DateFormat('yyyy-MM-dd').format(pickedFechaDesierto!);
+                  final fechaISO =
+                      DateFormat('yyyy-MM-dd').format(pickedFechaDesierto!);
                   Navigator.pop(ctx, {
                     'fecha_desierto': fechaISO,
                     'observaciones': observaciones,
@@ -1270,7 +1446,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                   maxLines: 4,
                   decoration: InputDecoration(
                     labelText: 'Observaciones (obligatorias)',
-                    hintText: 'Ingresa las observaciones requeridas para el reinicio...',
+                    hintText:
+                        'Ingresa las observaciones requeridas para el reinicio...',
                     errorText: errObservaciones,
                     border: const OutlineInputBorder(),
                   ),
@@ -1294,14 +1471,16 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                 onPressed: () {
                   final observaciones = observacionesCtrl.text.trim();
                   if (observaciones.isEmpty) {
-                    setS(() => errObservaciones = 'Las observaciones son obligatorias');
+                    setS(() => errObservaciones =
+                        'Las observaciones son obligatorias');
                     return;
                   }
 
                   // Combinar automáticamente el número MSC con las observaciones
-                  final observacionesCombinadas = numeroProcedimientoActual.isNotEmpty
-                      ? '$numeroProcedimientoActual\n$observaciones'
-                      : observaciones;
+                  final observacionesCombinadas =
+                      numeroProcedimientoActual.isNotEmpty
+                          ? '$numeroProcedimientoActual\n$observaciones'
+                          : observaciones;
 
                   Navigator.pop(ctx, {
                     'numero_procedimiento_msc': numeroProcedimientoActual,
@@ -2339,109 +2518,140 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
 
 // ====== MODIFICAR LA SECCIÓN DE DATOS DIAM ======
 // Reemplazar la sección actual de Datos DIAM con:
-    const SizedBox(height: 12),
-    const Divider(height: 22),
-    Row(
-    children: [
-    Text('Datos DIAM',
-    style: Theme.of(context)
-        .textTheme
-        .titleMedium
-        ?.copyWith(fontWeight: FontWeight.w700)),
-    const Spacer(),
-    IconButton(
-    icon: Icon(_showMoreDiam
-    ? Icons.expand_less
-        : Icons.expand_more),
-    onPressed: () {
-    setState(() {
-    _showMoreDiam = !_showMoreDiam;
-    });
-    },
-    ),
-    ],
-    ),
-    const SizedBox(height: 8),
-    _kv('No. ICM',
-    (_p.numeroIcm == null || (_p.numeroIcm?.trim().isEmpty ?? true))
-    ? 'Aún no registrado'
-        : _p.numeroIcm!),
-    _kv('Fecha ICM (estimada)', _fmtDdMmYyOrPend(_p.fechaIcm)),
-    _kv('Importe PMC', _fmtMoneyOrPend(_p.importePmc)),
-    _kv('Fecha de ICM validada', _fmtDdMmYyOrPend(_p.fechaEnvioPmc)),
+                    const SizedBox(height: 12),
+                    const Divider(height: 22),
+                    Row(
+                      children: [
+                        Text('Datos DIAM',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700)),
+                        const Spacer(),
+                        IconButton(
+                          icon: Icon(_showMoreDiam
+                              ? Icons.expand_less
+                              : Icons.expand_more),
+                          onPressed: () {
+                            setState(() {
+                              _showMoreDiam = !_showMoreDiam;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _kv(
+                        'No. ICM',
+                        (_p.numeroIcm == null ||
+                                (_p.numeroIcm?.trim().isEmpty ?? true))
+                            ? 'Aún no registrado'
+                            : _p.numeroIcm!),
+                    _kv('Fecha ICM (estimada)', _fmtDdMmYyOrPend(_p.fechaIcm)),
+                    _kv('Importe PMC', _fmtMoneyOrPend(_p.importePmc)),
+                    _kv('Fecha de ICM validada',
+                        _fmtDdMmYyOrPend(_p.fechaEnvioPmc)),
 
 // Campos que se muestran solo cuando _showMoreDiam es true
-    if (_showMoreDiam) ...[
-    if (_p.plazoEntregaReal != null)
-    _kv('Plazo entrega real (días)', _p.plazoEntregaReal.toString()),
-    if (_p.vigenciaIcm != null)
-    _kv('Vigencia ICM', _fmtDdMmYyOrPend(_p.vigenciaIcm)),
-    ],
-
-
+                    if (_showMoreDiam) ...[
+                      if (_p.plazoEntregaReal != null)
+                        _kv('Plazo entrega real (días)',
+                            _p.plazoEntregaReal.toString()),
+                      if (_p.vigenciaIcm != null)
+                        _kv('Vigencia ICM', _fmtDdMmYyOrPend(_p.vigenciaIcm)),
+                    ],
 
 // ====== MODIFICAR LA SECCIÓN DE DATOS ABASTECIMIENTOS ======
 // Reemplazar la sección actual de Datos Abastecimientos con:
-    const SizedBox(height: 12),
-    const Divider(height: 22),
-    Row(
-    children: [
-    Text('Datos Abastecimientos',
-    style: Theme.of(context)
-        .textTheme
-        .titleMedium
-        ?.copyWith(fontWeight: FontWeight.w700)),
-    const Spacer(),
-    IconButton(
-    icon: Icon(_showMoreAbast
-    ? Icons.expand_less
-        : Icons.expand_more),
-    onPressed: () {
-    setState(() {
-    _showMoreAbast = !_showMoreAbast;
-    });
-    },
-    ),
-    ],
-    ),
-    const SizedBox(height: 8),
-    _kv('Entrega de expediente a OP', _fmtDdMmYyOrPend(_p.fechaEntregaExp)),
-    _kv('Fecha de publicación', _fmtDdMmYyOrPend(_p.fechaPublicacion)),
-    _kv('Número de procedimiento MSC', _p.numeroProcedimientoMsc ?? 'Aún no registrado'),
+                    const SizedBox(height: 12),
+                    const Divider(height: 22),
+                    Row(
+                      children: [
+                        Text('Datos Abastecimientos',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700)),
+                        const Spacer(),
+                        IconButton(
+                          icon: Icon(_showMoreAbast
+                              ? Icons.expand_less
+                              : Icons.expand_more),
+                          onPressed: () {
+                            setState(() {
+                              _showMoreAbast = !_showMoreAbast;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _kv('Entrega de expediente a OP',
+                        _fmtDdMmYyOrPend(_p.fechaEntregaExp)),
+                    Builder(
+                      builder: (context) {
+                        String label = 'Fecha de publicación';
+                        String val = 'Aún no registrado';
+
+                        if (_p.fechaPubliGAB != null) {
+                          label = 'Fecha publicación (GAB)';
+                          val = _fmtDdMmYyOrPend(_p.fechaPubliGAB);
+                        } else if (_p.fechaPublicacion != null) {
+                          label = 'Fecha publicación (Local)';
+                          val = _fmtDdMmYyOrPend(_p.fechaPublicacion);
+                        }
+
+                        return _kv(label, val);
+                      },
+                    ),
+                    _kv('Número de procedimiento MSC',
+                        _p.numeroProcedimientoMsc ?? 'Aún no registrado'),
 
 // Campos que se muestran solo cuando _showMoreAbast es true
-    if (_showMoreAbast) ...[
-    _kv('Fecha publicación GAB', _fmtDdMmYyOrPend(_p.fechaPubliGAB)),
-    _kv('Fecha visita sitio', _fmtDdMmYyOrPend(_p.fechaVisitaSitio)),
-    _kv('Fecha sesión aclaraciones', _fmtDdMmYyOrPend(_p.fechaSesionAclaraciones)),
-    _kv('Fecha apertura técnica', _fmtDdMmYyOrPend(_p.fechaAperturaTecnica)),
-    _kv('Fecha apertura económica', _fmtDdMmYyOrPend(_p.fechaAperturaEconomica)),
-    _kv('Fecha fallo', _fmtDdMmYyOrPend(_p.fechaFallo)),
-    ],
+                    if (_showMoreAbast) ...[
+                      _kv('Fecha visita sitio',
+                          _fmtDdMmYyOrPend(_p.fechaVisitaSitio)),
+                      _kv('Fecha sesión aclaraciones',
+                          _fmtDdMmYyOrPend(_p.fechaSesionAclaraciones)),
+                      _kv('Fecha apertura técnica',
+                          _fmtDdMmYyOrPend(_p.fechaAperturaTecnica)),
+                      _kv('Fecha apertura económica',
+                          _fmtDdMmYyOrPend(_p.fechaAperturaEconomica)),
+                      _kv('Fecha fallo', _fmtDdMmYyOrPend(_p.fechaFallo)),
+                      if (_p.numeroContrato != null)
+                        _kv('Número de contrato', _p.numeroContrato!),
+                      if (_p.fechaFormalizacionContrato != null)
+                        _kv('Fecha formalización contrato', _fmtDdMmYyOrPend(_p.fechaFormalizacionContrato)),
+                      // Cancelación / Desierto (Estados 23 y 24)
+                      if (_p.fechaCancelacion != null)
+                        _kv('Fecha de cancelación', _fmtDdMmYyOrPend(_p.fechaCancelacion), valueColor: Colors.red),
+                      if (_p.fechaDesierto != null)
+                        _kv('Fecha declarado desierto', _fmtDdMmYyOrPend(_p.fechaDesierto), valueColor: Colors.orange),
+                    ],
 
 // Botón "Mostrar más/menos" para Abastecimientos (solo si hay campos adicionales)
-    if (_p.fechaPubliGAB != null ||
-    _p.fechaVisitaSitio != null ||
-    _p.fechaSesionAclaraciones != null ||
-    _p.fechaAperturaTecnica != null ||
-    _p.fechaAperturaEconomica != null ||
-    _p.fechaFallo != null)
-    Align(
-    alignment: Alignment.centerRight,
-    child: TextButton.icon(
-    onPressed: () {
-    setState(() {
-    _showMoreAbast = !_showMoreAbast;
-    });
-    },
-    icon: Icon(_showMoreAbast
-    ? Icons.expand_less
-        : Icons.expand_more),
-    label: Text(_showMoreAbast ? 'Mostrar menos' : 'Mostrar más'),
-    ),
-    ),
+                    if (_p.fechaPubliGAB != null ||
+                        _p.fechaVisitaSitio != null ||
+                        _p.fechaSesionAclaraciones != null ||
+                        _p.fechaAperturaTecnica != null ||
+                        _p.fechaAperturaEconomica != null ||
+                        _p.fechaFallo != null)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _showMoreAbast = !_showMoreAbast;
+                            });
+                          },
+                          icon: Icon(_showMoreAbast
+                              ? Icons.expand_less
+                              : Icons.expand_more),
+                          label: Text(
+                              _showMoreAbast ? 'Mostrar menos' : 'Mostrar más'),
+                        ),
+                      ),
                   ],
-
                 ),
               ),
             ),
@@ -2626,7 +2836,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                     ),
 
                     // Campo de fecha de expediente estimado - solo visible cuando el estado 10 está activo
-                    if (_estadoIdActual == 10 || _solconStates.contains(_estadoIdActual))
+                    if (_estadoIdActual == 10 ||
+                        _solconStates.contains(_estadoIdActual))
                       Padding(
                         padding: const EdgeInsets.only(top: 12, left: 40),
                         child: Column(
@@ -2635,7 +2846,9 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                             Text(
                               'Fecha de entrega de expediente (estimado)',
                               style: TextStyle(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -2643,9 +2856,12 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                             const SizedBox(height: 8),
                             // NUEVO: InkWell condicional basado en permisos
                             InkWell(
-                              onTap: puedeEditarFechaExpEstim ? _seleccionarFechaExpEstim : null,
+                              onTap: puedeEditarFechaExpEstim
+                                  ? _seleccionarFechaExpEstim
+                                  : null,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
                                 decoration: BoxDecoration(
                                   border: Border.all(
                                     color: puedeEditarFechaExpEstim
@@ -2658,25 +2874,33 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                                       : Colors.grey.withOpacity(0.1),
                                 ),
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
                                       _fechaExpEstim != null
-                                          ? DateFormat('dd/MM/yyyy').format(_fechaExpEstim!)
+                                          ? DateFormat('dd/MM/yyyy')
+                                              .format(_fechaExpEstim!)
                                           : 'Seleccionar fecha',
                                       style: TextStyle(
                                         color: _fechaExpEstim != null
-                                            ? Theme.of(context).colorScheme.onSurface
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .onSurface
                                             : (puedeEditarFechaExpEstim
-                                            ? Theme.of(context).colorScheme.onSurfaceVariant
-                                            : Colors.grey),
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurfaceVariant
+                                                : Colors.grey),
                                       ),
                                     ),
                                     Icon(
                                       Icons.calendar_today,
                                       size: 20,
                                       color: puedeEditarFechaExpEstim
-                                          ? Theme.of(context).colorScheme.primary
+                                          ? Theme.of(context)
+                                              .colorScheme
+                                              .primary
                                           : Colors.grey,
                                     ),
                                   ],
@@ -2697,7 +2921,9 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                               Text(
                                 'Se enviará una notificación cuando esté por vencer',
                                 style: TextStyle(
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                                   fontSize: 12,
                                 ),
                               ),
@@ -2761,6 +2987,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
       builder: (ctx) => _HistorialEstadosSheet(proyectoId: _p.id, api: _api),
     );
   }
+
   Future<String?> _pedirObservacionesObligatoriasEstado13() async {
     final ctrl = TextEditingController();
     String? err;
@@ -2890,7 +3117,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                 onPressed: () {
                   final procedimiento = procedimientoCtrl.text.trim();
                   if (procedimiento.isEmpty) {
-                    setS(() => errProcedimiento = 'Ingresa el número de procedimiento');
+                    setS(() => errProcedimiento =
+                        'Ingresa el número de procedimiento');
                     return;
                   }
                   if (pickedFechaPublicacion == null) {
@@ -2898,7 +3126,8 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
                     return;
                   }
 
-                  final fechaISO = DateFormat('yyyy-MM-dd').format(pickedFechaPublicacion!);
+                  final fechaISO =
+                      DateFormat('yyyy-MM-dd').format(pickedFechaPublicacion!);
                   Navigator.pop(ctx, {
                     'fecha_publicacion': fechaISO,
                     'numero_procedimiento_msc': procedimiento,
@@ -2954,6 +3183,7 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
   }) {
     final curr = _estadoIdActual ?? 1;
     final currIdx = _orderedStates.indexOf(curr);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2965,48 +3195,139 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
         ),
         ...estados.map((eid) {
           final idx = _orderedStates.indexOf(eid);
-          final checked =
-              (idx != -1 && currIdx != -1) ? idx <= currIdx : eid <= curr;
+
+          // 1. LÓGICA VISUAL (CHECKED)
+          bool checked = _estadosMarcadosVisualmente.contains(eid);
+
+          // Validaciones de consistencia visual
+          if (eid == 14 && checked && _p.fechaPublicacion == null)
+            checked = false;
+          if (eid == 15 && checked && _p.fechaPubliGAB == null) checked = false;
 
           final canTouch = widget.canEdit && !isViewer && enabledForAdvance;
-
-          // Identifica el rank (posición) del estado actual y del que se hizo clic
-          final currRank = _rank(_estadoIdActual ?? 1);
+          final currRank = _rank(curr);
           final clickRank = _rank(eid);
 
           Future<void> onChange(bool? v) async {
             if (!canTouch) return;
-            final val =
-                v ?? false; // val=true si se marcó, val=false si se desmarcó
+            final val = v ?? false;
 
             if (val) {
-              // ----- LÓGICA DE AVANCE -----
-              // Solo se puede marcar el checkbox INMEDIATAMENTE SIGUIENTE al actual.
-              if (clickRank == currRank + 1) {
+              // ==================================================
+              //              LÓGICA DE AVANCE (CHECK)
+              // ==================================================
+
+              final salto11a13 = (_estadoIdActual == 11 && eid == 13);
+              final salto13a15 = (_estadoIdActual == 13 && eid == 15);
+              final salto14a16 = (_estadoIdActual == 14 && eid == 16);
+
+              // Permitir ir a 23 o 24 directamente
+              final intentoCancelado = (eid == 23);
+              final intentoDesierto = (eid == 24);
+
+              // Bloqueo 14 vs 15
+              if (_estadoIdActual == 14 && eid == 15) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text(
+                          'El estado 12 y 13 son excluyentes. Debe avanzar al 14.')),
+                );
+                return;
+              }
+
+              // Validación para Desierto (24): Debe haber pasado por 14 o 15
+              if (intentoDesierto) {
+                final pasoPor14 = _p.fechaPublicacion != null;
+                final pasoPor15 = _p.fechaPubliGAB != null;
+                if (!pasoPor14 && !pasoPor15) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text(
+                            'Para activar Desierto, es obligatorio haber registrado primero Publicación local (12) o GAB (13).')),
+                  );
+                  return;
+                }
+              }
+
+              // Permitir cambio entre finales (de 23 a 24 o viceversa)
+              bool cambioEntreFinales = (_estadoIdActual == 23 && eid == 24) ||
+                  (_estadoIdActual == 24 && eid == 23);
+
+              if (clickRank == currRank + 1 ||
+                  salto11a13 ||
+                  salto13a15 ||
+                  salto14a16 ||
+                  intentoCancelado ||
+                  intentoDesierto ||
+                  cambioEntreFinales) {
                 await _updateEstado(eid);
               } else if (clickRank > currRank) {
-                // Si se hace clic en un estado futuro (ej. saltar de 2 a 4)
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                      content: Text('Debe completar los estados en orden')),
+                      content: Text(
+                          'Debe completar los estados en orden o usar las rutas válidas')),
                 );
               }
-              // Si se hace clic en uno ya marcado, no se hace nada (val=true)
             } else {
-              // ----- LÓGICA DE RETROCESO -----
-              // Solo se puede desmarcar el checkbox ACTUAL (el último activo).
+              // ==================================================
+              //             LÓGICA DE RETROCESO (UNCHECK)
+              // ==================================================
               if (clickRank == currRank) {
-                // Retroceder al estado anterior en la secuencia
-                final targetRank = currRank - 1;
+                int targetId = 1;
 
-                // Si desmarcamos el primer item (rank 0, ej. estado 2), volvemos al estado base '1'
-                final targetId =
-                    (targetRank >= 0) ? _orderedStates[targetRank] : 1;
+                // CASO A: Retroceder desde Cancelado (23) o Desierto (24)
+                // OBJETIVO: "Reanudar" el proyecto (volver al flujo lineal)
+                if (_estadoIdActual == 23 || _estadoIdActual == 24) {
+                  bool encontrado = false;
+                  try {
+                    final history = await _api.getHistorialEstados(_p.id);
+
+                    // CAMBIO IMPORTANTE: Buscamos el primer estado anterior que sea <= 22.
+                    // Esto ignora si pasamos de 24 a 23. Fuerza el regreso al flujo normal.
+                    final entry = history.firstWhere(
+                      (h) =>
+                          (h['estado_anterior_id'] as int?) != null &&
+                          (h['estado_anterior_id'] as int) <= 22,
+                      orElse: () => <String, dynamic>{},
+                    );
+
+                    if (entry.isNotEmpty) {
+                      targetId = entry['estado_anterior_id'] as int;
+                      encontrado = true;
+                    }
+                  } catch (_) {}
+
+                  // Fallback manual si falla el historial
+                  if (!encontrado) {
+                    if (_p.fechaPubliGAB != null)
+                      targetId = 15;
+                    else if (_p.fechaPublicacion != null)
+                      targetId = 14;
+                    else if (_p.fechaEntregaExp != null)
+                      targetId = 11;
+                    else
+                      targetId = 22; // Fallback genérico (Firma contrato)
+                  }
+                }
+                // CASO B: Retroceso lineal estándar
+                else {
+                  final targetRank = currRank - 1;
+                  targetId = (targetRank >= 0) ? _orderedStates[targetRank] : 1;
+
+                  // Rutas especiales para volver desde 16, 15, 13
+                  if (_estadoIdActual == 16) {
+                    if (_p.fechaPubliGAB != null)
+                      targetId = 15;
+                    else
+                      targetId = 14;
+                  } else if (_estadoIdActual == 15)
+                    targetId = 13;
+                  else if (_estadoIdActual == 13) targetId = 11;
+                }
+
                 await _updateEstado(targetId);
               } else if (clickRank < currRank) {
-                // Si se hace clic en un estado anterior (ej. desmarcar 2 cuando estamos en 4)
-                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                       content:
@@ -3022,12 +3343,11 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
             controlAffinity: ListTileControlAffinity.leading,
             title: Text(_nombresEstados[eid] ?? 'Estado $eid'),
             value: checked,
-            onChanged: canTouch
-                ? onChange
-                : null, // <- deshabilitado si no tiene permiso
+            onChanged: canTouch ? onChange : null,
           );
         }),
-        // Botón de reinicio solo para estado 24 activo
+
+        // Botón de reinicio (solo visible en estado 24)
         if (estados.contains(24) && _estadoIdActual == 24)
           Padding(
             padding: const EdgeInsets.only(top: 12, left: 40),
@@ -3035,26 +3355,29 @@ class _ProyectoDetailsScreenState extends State<ProyectoDetailsScreen> {
               onPressed: () async {
                 final datosReinicio = await _pedirReinicioEstado12();
                 if (datosReinicio == null) return;
-
                 try {
                   final resp = await _api.actualizarEstado(
                     proyectoId: _p.id,
-                    estadoId: 12, // Reiniciar al estado 12
+                    estadoId: 12,
                     observaciones: datosReinicio['observaciones'],
-                    numeroProcedimientoMSC: datosReinicio['numero_procedimiento_msc'],
+                    numeroProcedimientoMSC:
+                        datosReinicio['numero_procedimiento_msc'],
                   );
-
                   setState(() {
                     _estadoIdActual = 12;
-                    _estadoNombre = (resp['estado_nombre'] ?? _estadoNombre)?.toString();
-                    _etapaNombre = (resp['etapa_nombre'] ?? _etapaNombre)?.toString();
+                    _estadoNombre =
+                        (resp['estado_nombre'] ?? _estadoNombre)?.toString();
+                    _etapaNombre =
+                        (resp['etapa_nombre'] ?? _etapaNombre)?.toString();
                   });
-
                   await _refreshProyecto();
+                  // Calcular ruta visual de nuevo al reiniciar
+                  await _calcularRutaVisual();
 
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Proyecto reiniciado al estado 12')),
+                    const SnackBar(
+                        content: Text('Proyecto reiniciado al estado 12')),
                   );
                 } catch (e) {
                   if (!mounted) return;
@@ -3175,6 +3498,8 @@ class _HistorialSheet extends StatelessWidget {
                           final it = data[i];
                           final obs = (it['observacion'] ?? '').toString();
                           final rpe = (it['cambiado_por_rpe'] ?? '').toString();
+                          final nombreUser =
+                              (it['usuario_nombre'] ?? '').toString();
                           final fecha =
                               _fmt((it['created_at'] ?? '').toString());
                           final estado =
@@ -3197,7 +3522,10 @@ class _HistorialSheet extends StatelessWidget {
                                 children: [
                                   Wrap(spacing: 8, runSpacing: 8, children: [
                                     _chip(ctx, Icons.schedule, fecha),
-                                    if (rpe.isNotEmpty)
+                                    if (nombreUser.isNotEmpty)
+                                      _chip(
+                                          ctx, Icons.person_outline, nombreUser)
+                                    else if (rpe.isNotEmpty)
                                       _chip(ctx, Icons.badge_outlined,
                                           'RPE $rpe'),
                                     if (estado.isNotEmpty)
@@ -3452,6 +3780,8 @@ class _HistorialEstadosSheet extends StatelessWidget {
                       final it = data[i];
                       final ts = (it['created_at'] ?? '').toString();
                       final rpe = (it['cambiado_por_rpe'] ?? '').toString();
+                      final nombreUser =
+                          (it['usuario_nombre'] ?? '').toString();
                       final ea = (it['estado_anterior'] ?? '—').toString();
                       final en = (it['estado_nuevo'] ?? '—').toString();
                       final mot = (it['motivo'] ?? '').toString();
@@ -3470,7 +3800,9 @@ class _HistorialEstadosSheet extends StatelessWidget {
                             children: [
                               Wrap(spacing: 8, runSpacing: 8, children: [
                                 _chip(ctx, Icons.schedule, _fmtDT(ts)),
-                                if (rpe.isNotEmpty)
+                                if (nombreUser.isNotEmpty)
+                                  _chip(ctx, Icons.person_outline, nombreUser)
+                                else if (rpe.isNotEmpty)
                                   _chip(ctx, Icons.badge_outlined, 'RPE $rpe'),
                               ]),
                               const SizedBox(height: 8),

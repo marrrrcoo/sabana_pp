@@ -22,7 +22,7 @@ class PushNotifications {
   final FirebaseMessaging _fm = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _fln = FlutterLocalNotificationsPlugin();
 
-  // Canal Android (¡usa el mismo id en el backend!)
+  // Canal Android
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
     'high_importance',
     'Notificaciones importantes',
@@ -33,7 +33,6 @@ class PushNotifications {
   String? _currentToken;
   int? _currentRpe;
 
-  /// Así te pasas el "tap" a tu UI/router
   NotificationTapHandler? onTap;
 
   Future<void> initForUser({required int rpe}) async {
@@ -41,20 +40,20 @@ class PushNotifications {
 
     // 1) Permisos
     await _fm.requestPermission();
-    await _fm.setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true);
+    await _fm.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true
+    );
 
-    // 2) Handlers FCM
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
-    // 3) Notificaciones locales
-    await _initLocalNotifications();
-
-    // 4) Token + registro en tu backend
+    // 2) Token + registro en tu backend
     _currentToken = await _fm.getToken();
     if (_currentToken != null) {
       await _registerTokenWithBackend(rpe: rpe, token: _currentToken!);
       debugPrint('FCM token: $_currentToken');
     }
+
+    // 3) Refresh token
     FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
       _currentToken = newToken;
       if (_currentRpe != null) {
@@ -62,28 +61,20 @@ class PushNotifications {
       }
     });
 
-    // 5) Mensaje en FOREGROUND -> mostramos local
+    // 4) Mensaje en FOREGROUND -> mostramos local
     FirebaseMessaging.onMessage.listen((message) async {
       debugPrint('FG message: ${message.notification?.title} - ${message.notification?.body} data=${message.data}');
       await _showLocalFromRemote(message);
     });
 
-    // 6) Tap cuando la app estaba en background
-    FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      debugPrint('Notification tap (FCM): data=${message.data}');
-      onTap?.call(message.data);
-    });
+    // 5) Notificaciones locales
+    await _initLocalNotifications();
 
-    // 7) App abierta DESDE una notificación (app terminada)
-    final initialMessage = await _fm.getInitialMessage();
-    if (initialMessage != null) {
-      debugPrint('Initial message: data=${initialMessage.data}');
-      onTap?.call(initialMessage.data);
-    }
+    // ⚠️ ELIMINAR: Los handlers de onMessageOpenedApp e initialMessage
+    // ⚠️ NO configurar onTap aquí
   }
 
   Future<void> _initLocalNotifications() async {
-    // Icono: usa el launcher por simplicidad
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosInit = DarwinInitializationSettings();
     const initSettings = InitializationSettings(android: androidInit, iOS: iosInit);
@@ -136,7 +127,6 @@ class PushNotifications {
     required String token,
   }) async {
     try {
-      // Lee BASE_URL del .env (con un fallback útil para emulador)
       final base = dotenv.env['BASE_URL'] ?? 'http://10.0.2.2:3000';
       final baseUrl = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
 
@@ -159,7 +149,6 @@ class PushNotifications {
   }
 }
 
-// Tap cuando la app está totalmente terminada (no navegues aquí)
 @pragma('vm:entry-point')
 void notificationTapBackground(NotificationResponse resp) {
   debugPrint('Tap desde background: payload=${resp.payload}');
